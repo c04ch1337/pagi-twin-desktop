@@ -1,0 +1,61 @@
+name: Security & Quality (Rust)
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  rust-security-quality:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Cargo cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: rustfmt (check)
+        run: cargo fmt --check
+
+      - name: clippy (deny warnings)
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+      - name: test
+        run: cargo test --workspace
+
+      - name: check
+        run: cargo check --workspace
+
+      - name: Install cargo-audit (best-effort)
+        run: cargo install cargo-audit --locked
+        continue-on-error: true
+
+      - name: cargo audit (report-only)
+        run: cargo audit || true
+
+      - name: Install ripgrep
+        run: sudo apt-get update && sudo apt-get install -y ripgrep
+
+      - name: Dangerous pattern scan (report-only)
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "== dangerous pattern scan (report-only) =="
+          # NOTE: informational only; this repo legitimately contains some of these patterns.
+          # Excludes frontend/tauri dirs and target/.
+          rg -n --hidden --glob '!target/**' --glob '!frontend_desktop/**' --glob '!phoenix-desktop-tauri/**' --glob '!**/node_modules/**' --glob '*.rs' \
+            -e 'std::process::Command' \
+            -e '\\bCommand::new\\b' \
+            -e '\\bremove_dir_all\\b' \
+            -e '\\bunsafe\\s*\\{' \
+            -e 'MASTER_ORCHESTRATOR_UNRESTRICTED_EXECUTION' \
+            . || true
