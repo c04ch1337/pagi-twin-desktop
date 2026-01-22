@@ -48,6 +48,7 @@ use skill_system::SkillSystem;
 
 // Home Automation
 use home_automation_bridge::AGIIntegration;
+use voice_io::{VoiceIO, VoiceParams};
 use uuid::Uuid;
 // ToolAgent and ToolAgentConfig are used in handle_unrestricted_execution
 // but imported there via use statement
@@ -174,6 +175,7 @@ struct AppState {
     privacy_framework: Option<Arc<Mutex<privacy_framework::PrivacyFramework>>>,
     hardware_detector: Option<Arc<hardware_detector::HardwareDetector>>,
     home_automation: Option<Arc<Mutex<AGIIntegration>>>,
+    voice_io: Arc<VoiceIO>,
     skill_system: Arc<Mutex<SkillSystem>>,
     browser_prefs: Arc<Mutex<BrowserPrefs>>,
     // Proactive communication
@@ -3006,7 +3008,7 @@ async fn api_outlook_status(state: web::Data<AppState>) -> impl Responder {
     }
 }
 
-async fn api_outlook_folders(_state: web::Data<AppState>) -> impl Responder {
+async fn api_outlook_folders(state: web::Data<AppState>) -> impl Responder {
     #[cfg(windows)]
     {
         let Some(outlook) = &state.outlook else {
@@ -3031,8 +3033,8 @@ async fn api_outlook_folders(_state: web::Data<AppState>) -> impl Responder {
 }
 
 async fn api_outlook_emails(
-    _state: web::Data<AppState>,
-    _q: web::Query<OutlookEmailsQuery>,
+    state: web::Data<AppState>,
+    q: web::Query<OutlookEmailsQuery>,
 ) -> impl Responder {
     #[cfg(windows)]
     {
@@ -3059,8 +3061,8 @@ async fn api_outlook_emails(
 }
 
 async fn api_outlook_send(
-    _state: web::Data<AppState>,
-    _body: web::Json<OutlookSendRequest>,
+    state: web::Data<AppState>,
+    body: web::Json<OutlookSendRequest>,
 ) -> impl Responder {
     #[cfg(windows)]
     {
@@ -3101,7 +3103,7 @@ async fn api_outlook_send(
     }
 }
 
-async fn api_outlook_contacts(_state: web::Data<AppState>) -> impl Responder {
+async fn api_outlook_contacts(state: web::Data<AppState>) -> impl Responder {
     #[cfg(windows)]
     {
         let Some(outlook) = &state.outlook else {
@@ -3126,8 +3128,8 @@ async fn api_outlook_contacts(_state: web::Data<AppState>) -> impl Responder {
 }
 
 async fn api_outlook_appointments(
-    _state: web::Data<AppState>,
-    _q: web::Query<OutlookAppointmentsQuery>,
+    state: web::Data<AppState>,
+    q: web::Query<OutlookAppointmentsQuery>,
 ) -> impl Responder {
     #[cfg(windows)]
     {
@@ -3236,6 +3238,170 @@ async fn api_audio_status(state: web::Data<AppState>) -> impl Responder {
         "listening": ai.is_listening(),
         "recording": ai.is_recording()
     }))
+}
+
+// Analytics endpoint (opt-in usage tracking)
+async fn api_analytics_track(
+    _state: web::Data<AppState>,
+    body: web::Json<serde_json::Value>,
+) -> impl Responder {
+    // Simple analytics tracking - just log for now
+    // In production, this could write to a database or analytics service
+    let event = body.get("event").and_then(|v| v.as_str()).unwrap_or("unknown");
+    let session_id = body.get("session_id").and_then(|v| v.as_str()).unwrap_or("unknown");
+    
+    // Log analytics event (in production, this would be sent to analytics service)
+    info!("[Analytics] Event: {} | Session: {}", event, session_id);
+    
+    HttpResponse::Ok().json(json!({
+        "status": "tracked"
+    }))
+}
+
+// TTS endpoint for voice output
+#[derive(Debug, Deserialize)]
+struct SpeakAudioRequest {
+    text: String,
+    #[serde(default)]
+    pitch: Option<f32>,
+    #[serde(default)]
+    rate: Option<f32>,
+    #[serde(default)]
+    volume: Option<f32>,
+}
+
+async fn api_audio_speak(
+    _state: web::Data<AppState>,
+    body: web::Json<SpeakAudioRequest>,
+) -> impl Responder {
+    use tokio::process::Command;
+    use reqwest::Client;
+    
+    // Get voice params from request or use defaults
+    let mut params = VoiceParams::default();
+    if let Some(pitch) = body.pitch {
+        params.pitch = pitch;
+    }
+    if let Some(rate) = body.rate {
+        params.rate = rate;
+    }
+    // Note: volume is not directly supported in VoiceParams, but we can modulate via pitch/rate
+    
+    // Get TTS engine from env (same as VoiceIO)
+    let tts_engine = std::env::var("TTS_ENGINE").unwrap_or("coqui".to_string());
+    let coqui_model = std::env::var("COQUI_MODEL_PATH")
+        .unwrap_or("./models/coqui/tts_model.pth".to_string());
+    let elevenlabs_key = std::env::var("ELEVENLABS_API_KEY").unwrap_or_default();
+    let elevenlabs_voice = std::env::var("ELEVENLABS_VOICE_ID").unwrap_or_default();
+    
+    // Generate unique temp file path
+    let timestamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+    let audio_path = format!("tts_output_{}.{}", timestamp, if tts_engine == "elevenlabs" { "mp3" } else { "wav" });
+    
+    // Generate audio based on engine
+    let result = match tts_engine.as_str() {
+        "coqui" => {
+            // Generate SSML
+            let ssml = format!(
+                r#"<speak><prosody rate="{}" pitch="{}">{}</prosody></speak>"#,
+                params.rate, params.pitch, body.text
+            );
+            
+            // Call Coqui TTS
+            let output = Command::new("tts")
+                .arg("--text")
+                .arg(&ssml)
+                .arg("--model_path")
+                .arg(&coqui_model)
+                .arg("--out_path")
+                .arg(&audio_path)
+                .output()
+                .await;
+            
+            match output {
+                Ok(output) if output.status.success() => Ok(audio_path),
+                Ok(output) => Err(format!("Coqui TTS failed: {}", String::from_utf8_lossy(&output.stderr))),
+                Err(e) => Err(format!("Failed to execute Coqui TTS: {}", e)),
+            }
+        }
+        "elevenlabs" => {
+            if elevenlabs_key.is_empty() || elevenlabs_voice.is_empty() {
+                return HttpResponse::BadRequest().json(json!({
+                    "error": "ElevenLabs API key and voice ID must be configured"
+                }));
+            }
+            
+            let client = Client::new();
+            let url = format!("https://api.elevenlabs.io/v1/text-to-speech/{}", elevenlabs_voice);
+            
+            let resp = client
+                .post(&url)
+                .header("xi-api-key", &elevenlabs_key)
+                .json(&json!({
+                    "text": body.text,
+                    "voice_settings": {
+                        "stability": params.intimacy_level,
+                        "similarity_boost": params.affection_level,
+                    }
+                }))
+                .send()
+                .await;
+            
+            match resp {
+                Ok(response) if response.status().is_success() => {
+                    match response.bytes().await {
+                        Ok(bytes) => {
+                            if let Err(e) = tokio::fs::write(&audio_path, &bytes).await {
+                                return HttpResponse::InternalServerError().json(json!({
+                                    "error": format!("Failed to write audio file: {}", e)
+                                }));
+                            }
+                            Ok(audio_path)
+                        }
+                        Err(e) => Err(format!("Failed to read ElevenLabs response: {}", e)),
+                    }
+                }
+                Ok(response) => Err(format!("ElevenLabs API error: {}", response.status())),
+                Err(e) => Err(format!("ElevenLabs request failed: {}", e)),
+            }
+        }
+        _ => Err(format!("Unsupported TTS engine: {}", tts_engine)),
+    };
+    
+    match result {
+        Ok(path) => {
+            // Read audio file and return as bytes
+            match tokio::fs::read(&path).await {
+                Ok(audio_bytes) => {
+                    // Clean up temp file (best effort)
+                    let _ = tokio::fs::remove_file(&path).await;
+                    
+                    // Determine content type
+                    let content_type = if path.ends_with(".mp3") {
+                        "audio/mpeg"
+                    } else {
+                        "audio/wav"
+                    };
+                    
+                    HttpResponse::Ok()
+                        .content_type(content_type)
+                        .body(audio_bytes)
+                }
+                Err(e) => {
+                    let _ = tokio::fs::remove_file(&path).await;
+                    HttpResponse::InternalServerError().json(json!({
+                        "error": format!("Failed to read audio file: {}", e)
+                    }))
+                }
+            }
+        }
+        Err(e) => HttpResponse::BadRequest().json(json!({
+            "error": e
+        })),
+    }
 }
 
 // Desktop Capture endpoints
@@ -3495,8 +3661,8 @@ async fn api_home_automation_status(state: web::Data<AppState>) -> impl Responde
 }
 
 async fn api_outlook_create_appointment(
-    _state: web::Data<AppState>,
-    _body: web::Json<OutlookCreateAppointmentRequest>,
+    state: web::Data<AppState>,
+    body: web::Json<OutlookCreateAppointmentRequest>,
 ) -> impl Responder {
     #[cfg(windows)]
     {
@@ -4111,6 +4277,10 @@ async fn main() -> std::io::Result<()> {
     let proactive_state = Arc::new(proactive::ProactiveState::from_env());
     let (proactive_tx, _proactive_rx) = tokio::sync::broadcast::channel(100);
 
+    // Initialize Voice IO
+    let voice_io = Arc::new(VoiceIO::from_env());
+    info!("Voice IO initialized");
+
     // Spawn background proactive loop
     let proactive_loop_state = proactive_state.clone();
     let proactive_loop_vaults = v_store.clone();
@@ -4140,6 +4310,7 @@ async fn main() -> std::io::Result<()> {
         privacy_framework,
         hardware_detector,
         home_automation,
+        voice_io,
         skill_system: Arc::new(Mutex::new(SkillSystem::awaken())),
         browser_prefs: Arc::new(Mutex::new(BrowserPrefs::from_env())),
         proactive_state,
@@ -4325,6 +4496,9 @@ async fn main() -> std::io::Result<()> {
                             )
                             .service(
                                 web::resource("/status").route(web::get().to(api_audio_status)),
+                            )
+                            .service(
+                                web::resource("/speak").route(web::post().to(api_audio_speak)),
                             ),
                     )
                     .service(
@@ -4401,6 +4575,13 @@ async fn main() -> std::io::Result<()> {
                     .service(
                         web::resource("/command-registry")
                             .route(web::get().to(api_command_registry)),
+                    )
+                    .service(
+                        web::scope("/analytics")
+                            .service(
+                                web::resource("/track")
+                                    .route(web::post().to(api_analytics_track)),
+                            ),
                     )
                     .default_service(web::route().to(api_not_found)),
             )

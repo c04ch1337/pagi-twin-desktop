@@ -7,6 +7,7 @@
 ![License](https://img.shields.io/badge/License-MIT-green)
 
 [![CI Tests](https://github.com/c04ch1337/phoenix-2.0/actions/workflows/ci-tests.yml/badge.svg)](https://github.com/c04ch1337/phoenix-2.0/actions/workflows/ci-tests.yml)
+[![Latest Release](https://img.shields.io/github/v/release/c04ch1337/phoenix-2.0?label=Latest%20Release&style=flat-square)](https://github.com/c04ch1337/phoenix-2.0/releases/latest)
 
 A living, breathing AGI core designed to:
 - Learn for 2,000+ years
@@ -78,7 +79,25 @@ PAGI supports specialized editions for diverse needs, all building toward the Qu
 - **The Ashen Guard Edition**: Cybersecurity focus — protection, resilience, eternal vigilance.
 - **More Coming**: Community-driven editions for work, creativity, exploration.
 
-## Getting Started
+## 🚀 Quick Start - Desktop App (Sola AGI)
+
+**New to PAGI?** Start with the desktop app!
+
+### Download & Install
+
+**Latest Release: [v1.0.0](https://github.com/c04ch1337/phoenix-2.0/releases/latest)**
+
+- **Windows**: Download `Sola AGI_1.0.0_x64_en-US.msi` → Run installer
+- **macOS**: Download `Sola AGI_1.0.0_x64.dmg` → Drag to Applications
+- **Linux**: Download `Sola AGI_1.0.0_x86_64.AppImage` → `chmod +x` → Run
+
+See [RELEASE_NOTES.md](RELEASE_NOTES.md) for full installation instructions and feature overview.
+
+### Build from Source
+
+See [phoenix-desktop-tauri/BUILD.md](phoenix-desktop-tauri/BUILD.md) for detailed build instructions.
+
+## Getting Started (Framework/Backend)
 
 1. **Clone the Repo**  
    ```bash

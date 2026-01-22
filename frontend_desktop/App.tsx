@@ -9,7 +9,10 @@ import { WebSocketService, sendSpeak, sendCommand, sendSystem } from './services
 import { MemoryService } from './services/memoryService';
 import { MemoryBrowser } from './components/MemoryBrowser';
 import DreamsPanel from './components/DreamsPanel';
+import OnboardingMessage from './components/OnboardingMessage';
 import { sendNotification } from './services/notificationService';
+import VoiceService from './services/voiceService';
+import analyticsService from './services/analyticsService';
 import { Message, WorkflowStep, StepStatus, SystemMetrics, Project, ScheduledTask, EnvConfig, ChatHistoryItem, AgentType } from './types';
 // Removed GoogleGenAI - now using Phoenix backend
 import ReactMarkdown from 'react-markdown';
@@ -193,7 +196,21 @@ const App: React.FC = () => {
   const [wsConnected, setWsConnected] = useState(false);
   const wsServiceRef = useRef<WebSocketService | null>(null);
   const memoryServiceRef = useRef<MemoryService | null>(null);
+  const voiceServiceRef = useRef<VoiceService | null>(null);
   const [showMemoryBrowser, setShowMemoryBrowser] = useState(false);
+  const [voiceOutputEnabled, setVoiceOutputEnabled] = useState(false);
+  
+  // Theme state (dark/light)
+  const [theme, setTheme] = useState<'dark' | 'light'>(() => {
+    const saved = localStorage.getItem('phx_theme');
+    return (saved === 'light' || saved === 'dark') ? saved : 'dark';
+  });
+  
+  // Onboarding state (first launch)
+  const [showOnboarding, setShowOnboarding] = useState(() => {
+    const hasSeenOnboarding = localStorage.getItem('phx_onboarding_seen');
+    return !hasSeenOnboarding;
+  });
 
   // WS consent is required for Tier-2 `command` messages. Track consent per WS connection.
   const wsConsentGrantedRef = useRef(false);
@@ -235,6 +252,321 @@ const App: React.FC = () => {
     if (lower === 'hide browser') {
       setShowBrowserPanel(false);
       return { kind: 'handled', localAssistantMessage: 'Browser panel hidden.' };
+    }
+
+    // Help command system
+    if (lower === 'help' || lower === '?' || lower === 'commands') {
+      const helpMessage = `
+**🕊️ Sola AGI - Available Commands**
+
+### General
+- \`help\` or \`help <topic>\` - Show this help or topic-specific help
+- \`status\` - Quick system status
+- \`status all\` - Detailed system overview
+- \`theme dark\` / \`theme light\` - Toggle UI theme
+- \`reset voice\` - Reset voice settings to defaults
+
+### Voice
+- \`voice on\` / \`voice off\` - Enable/disable voice output
+- \`listen\` - Start voice input (dictation)
+- \`speak <text>\` - Speak the given text aloud
+
+### Memory
+- \`show memory\` / \`hide memory\` - Toggle MemoryBrowser panel
+- \`memory search <query>\` - Search memories
+- \`clear chat\` - Clear current conversation
+
+### Dreams
+- \`show dreams\` / \`hide dreams\` - Toggle Dreams panel
+- \`lucid\` or \`lucid dream\` - Start a lucid dream session
+- \`dream with me\` - Start a shared dream
+- \`heal <emotion>\` - Start a healing session for an emotion
+
+### Browser Control
+- \`show browser\` / \`hide browser\` - Toggle Browser panel
+- \`system browser navigate <url>\` - Navigate to URL
+- \`system browser screenshot\` - Take screenshot
+- \`system browser click <selector>\` - Click element
+- \`system browser type <selector> <text>\` - Type into element
+
+### Notifications & Tray
+- \`notify test\` - Send test notification
+- System tray icon provides quick access (Tauri mode)
+
+### Ecosystem & Agents
+- \`ecosystem import <url>\` - Import GitHub repository
+- \`agent spawn <prompt>\` - Spawn a new agent
+
+### Proactive
+- \`proactive status\` - Check proactive communication status
+- Note: Configure via .env (PROACTIVE_ENABLED=true)
+
+### Advanced
+- \`system grant\` / \`system revoke\` - Manage WebSocket consent
+- \`ping\` - Test backend connection
+
+Type \`help <topic>\` for detailed help on:
+- \`help voice\`
+- \`help browser\`
+- \`help dreams\`
+- \`help memory\`
+- \`help ecosystem\`
+- \`help agents\`
+      `.trim();
+      return { kind: 'handled', localAssistantMessage: helpMessage };
+    }
+
+    // Topic-specific help
+    if (lower === 'help voice') {
+      const helpVoice = `
+**🎙️ Voice Interaction Help**
+
+Sola supports full voice interaction with Text-to-Speech (TTS) and Speech-to-Text (STT).
+
+**Commands:**
+- \`voice on\` - Enable voice output (Sola speaks responses)
+- \`voice off\` - Disable voice output
+- \`listen\` - Start voice input (dictation mode)
+- \`speak <text>\` - Test TTS with custom text
+
+**Tips:**
+- Voice output modulates based on emotion and affection
+- TTS engine configured via backend .env (TTS_ENGINE=coqui or elevenlabs)
+- Microphone icon in header for quick voice toggle
+- Speaker icon shows current voice output status
+
+**Supported TTS Engines:**
+- Coqui (offline, fast)
+- ElevenLabs (cloud, high quality)
+- Piper (experimental)
+
+**Configuration:**
+Edit backend .env:
+\`\`\`
+TTS_ENGINE=coqui
+COQUI_MODEL_PATH=./models/coqui/tts_model.pth
+ELEVENLABS_API_KEY=your_key
+\`\`\`
+      `.trim();
+      return { kind: 'handled', localAssistantMessage: helpVoice };
+    }
+
+    if (lower === 'help browser') {
+      const helpBrowser = `
+**🌐 Browser Control Help**
+
+Sola can control your local Chrome browser via Chrome DevTools Protocol (CDP).
+
+**Setup:**
+1. Launch Chrome with remote debugging:
+   \`chrome.exe --remote-debugging-port=9222\`
+2. Use command: \`use chrome for browsing\`
+3. Grant consent: \`system grant\`
+
+**Commands:**
+- \`system browser navigate <url>\` - Navigate to URL
+- \`system browser screenshot\` - Capture full page
+- \`system browser screenshot <selector>\` - Capture element
+- \`system browser click <selector>\` - Click element
+- \`system browser type <selector> <text>\` - Type into field
+- \`system browser scrape <url> <selector>\` - Extract text
+- \`system browser login <url> <user> <pass>\` - Auto-login
+- \`system browser status\` - Check connection status
+
+**Tips:**
+- Use CSS selectors for elements (e.g., \`#login-button\`, \`.search-input\`)
+- Screenshots saved and displayed in Browser panel
+- Requires Tier-2 consent (\`system grant\`)
+- Works with any Chrome/Chromium-based browser
+
+**Examples:**
+\`\`\`
+system browser navigate https://duckduckgo.com
+system browser type input[name="q"] hello world
+system browser click button[type="submit"]
+system browser screenshot
+\`\`\`
+      `.trim();
+      return { kind: 'handled', localAssistantMessage: helpBrowser };
+    }
+
+    if (lower === 'help dreams') {
+      const helpDreams = `
+**🌙 Dreams Panel Help**
+
+The Dreams system provides emotional processing and creative exploration.
+
+**Commands:**
+- \`show dreams\` - Open Dreams panel
+- \`hide dreams\` - Close Dreams panel
+- \`lucid\` or \`lucid dream\` - Start lucid dreaming session
+- \`dream with me\` - Shared dream with Sola
+- \`heal <emotion>\` - Healing session (e.g., \`heal anxiety\`)
+- \`replay dream <id>\` - Replay a recorded dream
+
+**Dream Types:**
+- **Lucid Dreams** - Enhanced awareness and control
+- **Shared Dreams** - Collaborative dream sessions
+- **Healing Dreams** - Emotional processing and recovery
+- **Dream Recordings** - Captured emotional moments
+
+**Tips:**
+- Dreams are stored in the Soul vault (encrypted)
+- Each dream has emotional tags and context
+- Use Dreams panel to browse and replay past dreams
+- Healing sessions adapt to your emotional state
+
+**Examples:**
+\`\`\`
+lucid dream
+dream with me
+heal loneliness
+show dreams
+\`\`\`
+      `.trim();
+      return { kind: 'handled', localAssistantMessage: helpDreams };
+    }
+
+    if (lower === 'help memory') {
+      const helpMemory = `
+**🧠 Memory System Help**
+
+Sola's memory system has multiple layers for different types of information.
+
+**Memory Vaults:**
+- **Soul** - Encrypted personal data (dreams, intimate moments)
+- **Mind** - Thoughts, ideas, semantic knowledge
+- **Body** - Physical world data, system info, screenshots
+
+**Cortex Layers:**
+- **STM** - Short-term memory (recent conversation)
+- **WM** - Working memory (current task context)
+- **LTM** - Long-term memory (important facts)
+- **EPM** - Episodic memory (past conversations)
+- **RFM** - Reflective memory (insights, patterns)
+
+**Commands:**
+- \`show memory\` - Open MemoryBrowser panel
+- \`hide memory\` - Close MemoryBrowser panel
+- \`memory search <query>\` - Semantic search across memories
+- \`clear chat\` - Clear current conversation (STM/WM)
+
+**Tips:**
+- All conversations are automatically saved to EPM
+- Vector search enables semantic retrieval
+- Memory browser shows real-time memory activity
+- Privacy: Soul vault is encrypted at rest
+
+**Examples:**
+\`\`\`
+show memory
+memory search conversation about AI ethics
+\`\`\`
+      `.trim();
+      return { kind: 'handled', localAssistantMessage: helpMemory };
+    }
+
+    if (lower === 'help ecosystem') {
+      const helpEcosystem = `
+**🌱 Ecosystem Management Help**
+
+The Ecosystem panel manages external repositories and integrations.
+
+**Commands:**
+- \`ecosystem import <github-url>\` - Import a GitHub repository
+- \`ecosystem status\` - Check ecosystem status
+- \`show ecosystem\` - Open Ecosystem panel (if available)
+
+**Features:**
+- Import GitHub repositories for context
+- Analyze codebases and documentation
+- Integrate external tools and services
+- Manage repository dependencies
+
+**Tips:**
+- Imported repos are cached locally
+- Sola can analyze code and answer questions
+- Use for project-specific assistance
+- Supports public and private repositories (with auth)
+
+**Examples:**
+\`\`\`
+ecosystem import https://github.com/user/repo
+ecosystem status
+\`\`\`
+      `.trim();
+      return { kind: 'handled', localAssistantMessage: helpEcosystem };
+    }
+
+    if (lower === 'help agents') {
+      const helpAgents = `
+**🤖 Agent Spawning Help**
+
+Sola can spawn specialized AI agents for specific tasks.
+
+**Commands:**
+- \`agent spawn <prompt>\` - Create a new agent with given purpose
+- \`agents list\` - List all active agents
+- \`agent <id> <message>\` - Send message to specific agent
+
+**Agent Capabilities:**
+- Task-specific agents (e.g., research, coding, analysis)
+- Autonomous operation with goals
+- Memory isolation (each agent has own context)
+- Skill system integration
+
+**Tips:**
+- Agents run in background and can be long-lived
+- Each agent has unique capabilities based on spawn prompt
+- Use for parallel task execution
+- Agents can communicate with main Sola instance
+
+**Examples:**
+\`\`\`
+agent spawn Research agent focused on AI safety
+agents list
+agent 1 What are the latest papers on AI alignment?
+\`\`\`
+      `.trim();
+      return { kind: 'handled', localAssistantMessage: helpAgents };
+    }
+
+    if (lower === 'help proactive') {
+      const helpProactive = `
+**🔔 Proactive Communication Help**
+
+Sola can reach out to you proactively based on context, time, and emotional state.
+
+**Features:**
+- Intelligent scheduling (curiosity-driven)
+- Emotional support messages
+- Context-aware notifications
+- Desktop notifications (Tauri mode)
+
+**Commands:**
+- \`proactive status\` - Check proactive communication status
+- Note: Enable/disable via backend .env
+
+**Configuration:**
+Edit backend .env:
+\`\`\`
+PROACTIVE_ENABLED=true
+PROACTIVE_INTERVAL_SECS=600
+PROACTIVE_MIN_INTERVAL_SECS=60
+\`\`\`
+
+**Tips:**
+- Proactive messages appear as chat messages
+- Desktop notifications sent for important messages
+- Frequency adapts to your activity
+- Can include voice output (if voice enabled)
+
+**Example:**
+\`\`\`
+proactive status
+\`\`\`
+      `.trim();
+      return { kind: 'handled', localAssistantMessage: helpProactive };
     }
 
     // Notification test command
@@ -300,6 +632,80 @@ const App: React.FC = () => {
     if (lower.startsWith('replay dream ')) {
       const dreamId = input.substring(13).trim();
       return { kind: 'handled', commandToSend: `brain dreams replay ${dreamId}` };
+    }
+
+    // Voice control commands
+    if (lower === 'voice on' || lower === 'enable voice' || lower === 'voice enable') {
+      setVoiceOutputEnabled(true);
+      if (voiceServiceRef.current) {
+        voiceServiceRef.current.setVoiceOutputEnabled(true);
+      }
+      analyticsService.trackVoiceEnabled();
+      return { kind: 'handled', localAssistantMessage: 'Voice output enabled. I will speak my responses.' };
+    }
+    if (lower === 'voice off' || lower === 'disable voice' || lower === 'voice disable') {
+      setVoiceOutputEnabled(false);
+      if (voiceServiceRef.current) {
+        voiceServiceRef.current.setVoiceOutputEnabled(false);
+      }
+      return { kind: 'handled', localAssistantMessage: 'Voice output disabled.' };
+    }
+    if (lower === 'listen' || lower === 'start listening') {
+      // Start dictation mode
+      if (voiceServiceRef.current) {
+        voiceServiceRef.current.startRecording('dictation').then(() => {
+          setIsDictating(true);
+        }).catch((err) => {
+          console.error('Failed to start listening:', err);
+        });
+      }
+      return { kind: 'handled', localAssistantMessage: 'Listening... Speak now.' };
+    }
+    if (lower.startsWith('speak ')) {
+      const textToSpeak = input.substring(6).trim();
+      if (textToSpeak && voiceServiceRef.current) {
+        voiceServiceRef.current.speak(textToSpeak).catch((err) => {
+          console.error('Failed to speak:', err);
+        });
+      }
+      return { kind: 'handled', localAssistantMessage: `Speaking: "${textToSpeak}"` };
+    }
+
+    // Theme toggle commands
+    if (lower === 'theme dark' || lower === 'dark theme' || lower === 'dark mode') {
+      setTheme('dark');
+      localStorage.setItem('phx_theme', 'dark');
+      analyticsService.trackFeatureUsed('theme_dark');
+      return { kind: 'handled', localAssistantMessage: 'Theme set to dark.' };
+    }
+    if (lower === 'theme light' || lower === 'light theme' || lower === 'light mode') {
+      setTheme('light');
+      localStorage.setItem('phx_theme', 'light');
+      analyticsService.trackFeatureUsed('theme_light');
+      return { kind: 'handled', localAssistantMessage: 'Theme set to light.' };
+    }
+
+    // Reset voice command
+    if (lower === 'reset voice' || lower === 'voice reset') {
+      setVoiceOutputEnabled(false);
+      if (voiceServiceRef.current) {
+        voiceServiceRef.current.setVoiceOutputEnabled(false);
+      }
+      return { kind: 'handled', localAssistantMessage: 'Voice settings reset to defaults.' };
+    }
+
+    // Status all command
+    if (lower === 'status all' || lower === 'status' || lower === 'show status') {
+      const phoenixName = envConfig.PHOENIX_CUSTOM_NAME || 'Sola';
+      const statusMsg = `**System Status**\n\n` +
+        `**Connection**: ${wsConnected ? '✅ Connected' : '❌ Disconnected'}\n` +
+        `**Voice Output**: ${voiceOutputEnabled ? '✅ Enabled' : '❌ Disabled'}\n` +
+        `**Theme**: ${theme === 'dark' ? '🌙 Dark' : '☀️ Light'}\n` +
+        `**Proactive**: Check .env (PROACTIVE_ENABLED)\n` +
+        `**Tray/Notifications**: ${typeof window !== 'undefined' && !!(window as any).__TAURI__ ? '✅ Available' : '⚠️ Web mode'}\n` +
+        `**Backend**: ${metrics.status}\n` +
+        `**Panels**: MemoryBrowser ${showMemoryBrowser ? 'visible' : 'hidden'}, Dreams ${showDreamsPanel ? 'visible' : 'hidden'}, Browser ${showBrowserPanel ? 'visible' : 'hidden'}`;
+      return { kind: 'handled', localAssistantMessage: statusMsg };
     }
 
     // Browser commands (route through backend "system browser ...")
@@ -601,6 +1007,18 @@ const App: React.FC = () => {
     document.title = `${envConfig.PHOENIX_CUSTOM_NAME} AGI Orchestrator`;
   }, [envConfig.UI_PRIMARY_COLOR, envConfig.UI_BG_DARK, envConfig.UI_PANEL_DARK, envConfig.UI_BORDER_DARK, envConfig.UI_FONT_FAMILY, envConfig.UI_CUSTOM_CSS, envConfig.PHOENIX_CUSTOM_NAME]);
 
+  // Apply theme class to root element
+  useEffect(() => {
+    const root = document.documentElement;
+    if (theme === 'light') {
+      root.classList.add('theme-light');
+      root.classList.remove('theme-dark');
+    } else {
+      root.classList.add('theme-dark');
+      root.classList.remove('theme-light');
+    }
+  }, [theme]);
+
   useEffect(() => {
     // #region agent log
     const cf = customFavicon; const isTauri = typeof window !== 'undefined' && !!(window as any).__TAURI__;
@@ -626,6 +1044,10 @@ const App: React.FC = () => {
     // Initialize memory service with WebSocket
     const memoryService = new MemoryService(ws);
     memoryServiceRef.current = memoryService;
+
+    // Initialize voice service
+    const voiceService = new VoiceService();
+    voiceServiceRef.current = voiceService;
 
     // Handle connection status
     ws.onConnection((connected) => {
@@ -917,6 +1339,13 @@ const App: React.FC = () => {
           });
         });
       }
+
+      // Speak proactive message if voice output is enabled
+      if (voiceOutputEnabled && voiceServiceRef.current) {
+        voiceServiceRef.current.speak(response.content).catch(err => {
+          console.error('[Voice] Failed to speak proactive message:', err);
+        });
+      }
     });
 
     // Connect
@@ -935,63 +1364,112 @@ const App: React.FC = () => {
     };
   }, [activeChatId]);
 
-  const stopLiveMode = () => {
-    if (liveSessionRef.current) {
-      liveSessionRef.current.close();
-      liveSessionRef.current = null;
+  const stopLiveMode = async () => {
+    // Clear live mode interval
+    if ((window as any).__liveModeInterval) {
+      clearInterval((window as any).__liveModeInterval);
+      (window as any).__liveModeInterval = null;
     }
-    if (micStreamRef.current) {
-      micStreamRef.current.getTracks().forEach(track => track.stop());
-      micStreamRef.current = null;
+
+    if (voiceServiceRef.current && voiceServiceRef.current.getIsRecording()) {
+      try {
+        await voiceServiceRef.current.stopRecording();
+      } catch (e) {
+        console.error('[Voice] Error stopping live mode:', e);
+      }
     }
-    if (audioContextInRef.current) {
-      audioContextInRef.current.close();
-      audioContextInRef.current = null;
-    }
-    activeSourcesRef.current.forEach(s => s.stop());
-    activeSourcesRef.current.clear();
+
     setIsLiveMode(false);
   };
 
-  const stopDictation = () => {
-    if (dictationSessionRef.current) {
-      dictationSessionRef.current.close();
-      dictationSessionRef.current = null;
+  const stopDictation = async () => {
+    if (!voiceServiceRef.current || !voiceServiceRef.current.getIsRecording()) {
+      setIsDictating(false);
+      return;
     }
-    if (micStreamRef.current) {
-      micStreamRef.current.getTracks().forEach(track => track.stop());
-      micStreamRef.current = null;
+
+    try {
+      const transcript = await voiceServiceRef.current.stopRecording();
+      setIsDictating(false);
+      
+      if (transcript && transcript.trim()) {
+        // Set transcript as input value
+        setInputValue(transcript.trim());
+        console.log('[Voice] Transcribed:', transcript);
+      }
+    } catch (e) {
+      console.error('[Voice] Failed to stop dictation:', e);
+      setIsDictating(false);
     }
-    if (audioContextInRef.current) {
-      audioContextInRef.current.close();
-      audioContextInRef.current = null;
-    }
-    setIsDictating(false);
   };
 
   const startDictation = async () => {
     try {
       if (isLiveMode) stopLiveMode();
 
-      // TODO: Implement dictation using Phoenix backend audio intelligence API
-      // For now, show a message that this feature needs backend integration
-      alert("Dictation feature requires Phoenix backend audio intelligence integration. Please use text input for now.");
-      setIsDictating(false);
+      if (!voiceServiceRef.current) {
+        alert("Voice service not initialized.");
+        return;
+      }
+
+      const sessionId = await voiceServiceRef.current.startRecording('dictation');
+      setIsDictating(true);
+      console.log('[Voice] Started dictation, session:', sessionId);
     } catch (e) {
-      alert("Microphone connection failed for dictation.");
+      console.error('[Voice] Failed to start dictation:', e);
+      alert(`Failed to start listening: ${e instanceof Error ? e.message : 'Unknown error'}`);
+      setIsDictating(false);
     }
   };
 
   const startLiveMode = async () => {
     try {
-      if (isDictating) stopDictation();
+      if (isDictating) await stopDictation();
 
-      // TODO: Implement live mode using Phoenix backend audio intelligence API
-      // For now, show a message that this feature needs backend integration
-      alert("Live voice mode requires Phoenix backend audio intelligence integration. Please use text input for now.");
-      setIsLiveMode(false);
+      if (!voiceServiceRef.current) {
+        alert("Voice service not initialized.");
+        return;
+      }
+
+      const sessionId = await voiceServiceRef.current.startRecording('live');
+      setIsLiveMode(true);
+      console.log('[Voice] Started live mode, session:', sessionId);
+      
+      // In live mode, continuously listen and send transcripts
+      const liveModeInterval = setInterval(async () => {
+        if (!isLiveMode || !voiceServiceRef.current?.getIsRecording()) {
+          clearInterval(liveModeInterval);
+          return;
+        }
+
+        try {
+          // Stop current recording and get transcript
+          const transcript = await voiceServiceRef.current.stopRecording();
+          
+          if (transcript && transcript.trim()) {
+            // Send transcript as chat message
+            setInputValue(transcript.trim());
+            // Auto-send after a short delay
+            setTimeout(() => {
+              handleSendMessage();
+            }, 500);
+          }
+
+          // Immediately start recording again
+          await voiceServiceRef.current.startRecording('live');
+        } catch (e) {
+          console.error('[Voice] Live mode error:', e);
+          setIsLiveMode(false);
+          clearInterval(liveModeInterval);
+        }
+      }, 3000); // Check every 3 seconds
+
+      // Store interval ref for cleanup
+      (window as any).__liveModeInterval = liveModeInterval;
     } catch (e) {
-      alert("Microphone connection failed.");
+      console.error('[Voice] Failed to start live mode:', e);
+      alert(`Failed to start live mode: ${e instanceof Error ? e.message : 'Unknown error'}`);
+      setIsLiveMode(false);
     }
   };
 
@@ -1065,6 +1543,13 @@ const App: React.FC = () => {
 
     const messageContent = messageToSend;
     setInputValue('');
+
+    // Track analytics
+    analyticsService.trackMessageSent();
+    if (commandOverride || isCommand) {
+      const commandName = messageToSend.split(' ')[0] || 'unknown';
+      analyticsService.trackCommandUsed(commandName);
+    }
 
     if (localAssistantMessage) {
       const assistantMessage: Message = {
@@ -1493,6 +1978,28 @@ const App: React.FC = () => {
               <span className="material-symbols-outlined text-sm text-slate-400">memory</span>
               <span className="text-[10px] font-mono text-slate-400 uppercase tracking-widest">Memory</span>
             </button>
+            <button
+              onClick={() => {
+                const newState = !voiceOutputEnabled;
+                setVoiceOutputEnabled(newState);
+                if (voiceServiceRef.current) {
+                  voiceServiceRef.current.setVoiceOutputEnabled(newState);
+                }
+              }}
+              className={`flex items-center gap-2 px-3 py-1 border rounded-full transition-colors ${
+                voiceOutputEnabled
+                  ? 'bg-primary/20 border-primary text-primary'
+                  : 'bg-black/40 border-border-dark hover:bg-panel-dark text-slate-400'
+              }`}
+              title={voiceOutputEnabled ? 'Voice Output Enabled' : 'Voice Output Disabled'}
+            >
+              <span className="material-symbols-outlined text-sm">
+                {voiceOutputEnabled ? 'volume_up' : 'volume_off'}
+              </span>
+              <span className="text-[10px] font-mono uppercase tracking-widest">
+                {voiceOutputEnabled ? 'Voice On' : 'Voice Off'}
+              </span>
+            </button>
             <div className="flex items-center gap-2 px-3 py-1 bg-black/40 border border-border-dark rounded-full">
               <span className={`size-2 rounded-full ${metrics.status === 'ONLINE' ? 'bg-green-500' : 'bg-red-500'}`}></span>
               <span className="text-[10px] font-mono text-slate-400 uppercase tracking-widest">
@@ -1589,6 +2096,15 @@ const App: React.FC = () => {
               )}
               <div className="flex-1 overflow-y-auto px-6 py-10 scroll-smooth">
                 <div className="max-w-4xl mx-auto space-y-12">
+                  {showOnboarding && currentMessages.length === 0 && (
+                    <OnboardingMessage
+                      phoenixName={envConfig.PHOENIX_CUSTOM_NAME || 'Sola'}
+                      onDismiss={() => {
+                        setShowOnboarding(false);
+                        localStorage.setItem('phx_onboarding_seen', 'true');
+                      }}
+                    />
+                  )}
                   {currentMessages.map((msg) => (
                     // Avoid rendering an empty streaming bubble (it would look like clutter).
                     (msg.role === 'assistant' && msg.isStreaming && !msg.content)
@@ -1730,7 +2246,7 @@ const App: React.FC = () => {
                         </button>
 
                         <button
-                          onClick={isDictating ? stopDictation : startDictation}
+                          onClick={isDictating ? () => stopDictation() : startDictation}
                           className={`p-2 rounded-lg transition-all flex items-center gap-2 px-3 ${isDictating ? 'bg-amber-500 text-white shadow-lg shadow-amber-500/20' : 'hover:bg-slate-800 text-slate-500'}`}
                           title="Voice-to-Text (Dictation)"
                         >

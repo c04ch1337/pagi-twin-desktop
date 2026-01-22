@@ -53,6 +53,7 @@ hardware_detector = { path = "../hardware_detector" }
 home_automation_bridge = { path = "../home_automation_bridge" }
 curiosity_engine = { path = "../curiosity_engine" }
 emotional_intelligence_core = { path = "../emotional_intelligence_core" }
+voice_io = { path = "../voice_io" }
 
 [target.'cfg(windows)'.dependencies]
 outlook_com = { path = "../outlook_com" }

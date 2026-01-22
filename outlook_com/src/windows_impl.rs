@@ -54,8 +54,9 @@ impl OutlookComManagerImpl {
 
         match output {
             Ok(o) => {
-                let result = String::from_utf8_lossy(&o.stdout).trim();
-                result == "True"
+                let result = String::from_utf8_lossy(&o.stdout);
+                let trimmed = result.trim();
+                trimmed == "True"
             }
             Err(_) => false,
         }
@@ -65,7 +66,7 @@ impl OutlookComManagerImpl {
         Self::test_outlook_available()
     }
 
-    fn execute_powershell_script(script: &str) -> Result<String, OutlookError> {
+    async fn execute_powershell_script(script: &str) -> Result<String, OutlookError> {
         let output = tokio::task::spawn_blocking({
             let script = script.to_string();
             move || {
@@ -77,35 +78,12 @@ impl OutlookComManagerImpl {
             }
         })
         .await
-        .map_err(|e| OutlookError::ComOperationFailed(format!("Task join failed: {e}")))?;
+        .map_err(|e| OutlookError::ComOperationFailed(format!("Task join failed: {e}")))?
+        .map_err(|e| OutlookError::ComOperationFailed(format!("IO error: {e}")))?;
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
             return Err(OutlookError::ComOperationFailed(format!(
-                "PowerShell error: {stderr}"
-            )));
-        }
-
-        Ok(String::from_utf8_lossy(&output.stdout).to_string())
-    }
-
-    fn execute_powershell_script(script: &str) -> Result<String, crate::OutlookError> {
-        let output = tokio::task::spawn_blocking({
-            let script = script.to_string();
-            move || {
-                Command::new("powershell")
-                    .arg("-NoProfile")
-                    .arg("-Command")
-                    .arg(&script)
-                    .output()
-            }
-        })
-        .await
-        .map_err(|e| crate::OutlookError::ComOperationFailed(format!("Task join failed: {e}")))?;
-
-        if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            return Err(crate::OutlookError::ComOperationFailed(format!(
                 "PowerShell error: {stderr}"
             )));
         }
@@ -140,7 +118,7 @@ impl OutlookComManagerImpl {
             $result | ConvertTo-Json -Depth 10
         "#;
 
-        let output = Self::execute_powershell_script(script)?;
+        let output = Self::execute_powershell_script(script).await?;
 
         // Parse JSON response
         let folder: serde_json::Value = serde_json::from_str(&output)
@@ -211,7 +189,7 @@ impl OutlookComManagerImpl {
             folder_map, max
         );
 
-        let output = Self::execute_powershell_script(&script)?;
+        let output = Self::execute_powershell_script(&script).await?;
 
         let emails_json: Vec<serde_json::Value> = serde_json::from_str(&output)
             .map_err(|e| OutlookError::ComOperationFailed(format!("JSON parse error: {e}")))?;
@@ -322,7 +300,7 @@ impl OutlookComManagerImpl {
             attachments_script
         );
 
-        Self::execute_powershell_script(&script)?;
+        Self::execute_powershell_script(&script).await?;
         Ok(())
     }
 
@@ -361,7 +339,7 @@ impl OutlookComManagerImpl {
             $contactList | ConvertTo-Json -Depth 3
         "#;
 
-        let output = Self::execute_powershell_script(script)?;
+        let output = Self::execute_powershell_script(script).await?;
 
         let contacts_json: Vec<serde_json::Value> = serde_json::from_str(&output)
             .map_err(|e| OutlookError::ComOperationFailed(format!("JSON parse error: {e}")))?;
@@ -438,7 +416,7 @@ impl OutlookComManagerImpl {
         "#
         );
 
-        let output = Self::execute_powershell_script(&script)?;
+        let output = Self::execute_powershell_script(&script).await?;
 
         let appointments_json: Vec<serde_json::Value> = serde_json::from_str(&output)
             .map_err(|e| OutlookError::ComOperationFailed(format!("JSON parse error: {e}")))?;
@@ -545,7 +523,7 @@ impl OutlookComManagerImpl {
             reminder_str
         );
 
-        let entry_id = Self::execute_powershell_script(&script)?;
+        let entry_id = Self::execute_powershell_script(&script).await?;
         Ok(entry_id.trim().to_string())
     }
 }
