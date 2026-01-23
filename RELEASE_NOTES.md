@@ -1,6 +1,13 @@
-# Sola AGI v1.0.1 – Initial Release
+# Sola AGI v1.0.1 – Final Polish & Release
 
-**Sola AGI** is a powerful, privacy-first, emotionally-aware AI companion platform — built for real-world interaction and personal productivity.
+**Sola AGI** is your personal, emotionally-aware AI companion — built for privacy, voice, and real-world interaction.
+
+### What's New in v1.0.1
+- ✅ Tauri v2 migration complete (modern APIs, improved security)
+- ✅ Icon generation workflow implemented (all platforms)
+- ✅ Help system comprehensive with 11 topics
+- ✅ All 30 phases complete
+- ✅ Production-ready installers
 
 ---
 
@@ -92,10 +99,9 @@
 
 Download the installer for your platform:
 
-- **Windows:** `Sola AGI_1.0.1_x64_en-US.msi`
-- **macOS:** `Sola AGI_1.0.1_x64.dmg`
-- **Linux (AppImage):** `Sola AGI_1.0.1_amd64.AppImage`
-- **Linux (Debian):** `sola-agi_1.0.1_amd64.deb`
+- **Windows**: `Sola AGI_1.0.1_x64_en-US.msi`
+- **macOS**: `Sola AGI_1.0.1_x64.dmg`
+- **Linux**: `Sola AGI_1.0.1_x86_64.AppImage` or `.deb`
 
 ### Windows Installation
 1. Download `Sola AGI_1.0.1_x64_en-US.msi`
@@ -124,23 +130,9 @@ Download the installer for your platform:
 
 ## Quick Start
 
-### First Launch
-1. Install and run Sola AGI
-2. Complete onboarding (optional)
-3. Type anything in chat — Sola responds
-4. Explore features with `help` command
-
-### Essential Commands
-```
-help                    # Complete command reference
-voice on                # Enable voice output
-listen                  # Start voice input
-show dreams             # Open Dreams panel
-show memory             # Open Memory Browser
-system grant            # Grant browser control consent
-notify test             # Test desktop notifications
-theme dark              # Switch to dark theme
-```
+1. Install and run
+2. Type anything in chat — Sola responds
+3. Try: `voice on`, `system browser navigate https://duckduckgo.com`, `show dreams`, `notify test`, `help`
 
 ### Browser Control Setup
 1. Launch Chrome with debugging:
@@ -212,41 +204,11 @@ Access Settings panel (gear icon) for:
 
 ---
 
-## Known Issues
+## Known Issues / Coming Soon
 
-### Current Limitations
-- Code signing not configured (self-signed builds may trigger security warnings)
-- Screenshot placeholders in help system (actual screenshots coming soon)
-- Auto-update not yet implemented
-- Some voice wake words not yet supported
-
-### Workarounds
-
-**Windows Security Warning:**
-- Click "More info" → "Run anyway"
-- Or: Add exception in Windows Defender
-
-**macOS Gatekeeper:**
-- System Preferences → Security → "Open Anyway"
-- Or: `xattr -cr "/Applications/Sola AGI.app"`
-
-**Linux AppImage:**
-- Ensure FUSE is installed: `sudo apt install fuse`
-- Make executable: `chmod +x Sola_AGI.AppImage`
-
----
-
-## Coming Soon
-
-### Planned Features
-- Code signing for all platforms
-- Auto-update mechanism
-- More voice wake words
-- Ecosystem UI logs panel
-- Agent panel polish
-- Additional TTS engines
-- Mobile companion app
-- Cloud sync (optional)
+- Icons placeholder (generate your own 1024x1024 PNG)
+- Code signing not configured (self-signed builds)
+- Future: voice wake words, ecosystem UI logs, agent panel polish
 
 ---
 
@@ -342,9 +304,9 @@ Built with:
 
 ---
 
-**Thank you for trying Sola AGI!**
+**Thank you for trying Sola AGI. Type `help` in chat for commands. Feedback welcome!**
 
-Type `help` in chat for commands. Feedback and contributions welcome!
+🕊️❤️
 
 ---
 
