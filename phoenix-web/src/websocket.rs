@@ -531,48 +531,89 @@ async fn handle_speak_streaming(
         return Ok(());
     }
 
-    // Check if task should be delegated to swarm (hidden from user)
-    if let Some((task_type, complexity)) = crate::swarm_delegation::analyze_task(&user_input) {
-        info!(
-            "Task detected: type={:?}, complexity={:?} - checking swarm delegation",
-            task_type, complexity
-        );
+    // Get cognitive mode and relationship phase for gating logic
+    let phoenix_identity = state.phoenix_identity.lock().await.clone();
+    let cognitive_mode = phoenix_identity.get_cognitive_mode().await;
+    let zodiac_sign = phoenix_identity.zodiac_sign();
+    let identity = phoenix_identity.get_identity().await;
+    
+    // Retrieve ProceduralGateMemory (L7) for relationship phase and trust score
+    let (mut trust_score, mut relationship_phase, mut pii_checkbox) = 
+        state.neural_cortex.recall_procedural_gate("procedural_gate:current");
+    
+    // AUTOMATED TRUST SCORE CALCULATION (L7 Logic)
+    // Calculate trust increment based on PII sharing, sentiment, and behavior
+    if cognitive_mode == phoenix_identity::CognitiveMode::Personal {
+        use neural_cortex_strata::trust_calculator::{
+            calculate_phase_transition, calculate_trust_increment, extract_pii_entities, merge_pii_checkboxes,
+        };
         
-        // Try to delegate to swarm
-        if let Some(swarm_result) = crate::swarm_delegation::try_delegate_to_swarm(
-            &state.swarm_interface,
-            &user_input,
-            task_type,
-            complexity,
-        )
-        .await
-        {
-            // Swarm completed the task - Sola presents result as her own
-            info!("Swarm delegation successful - synthesizing response");
+        // Extract new PII from user input
+        let new_pii = extract_pii_entities(&user_input);
+        
+        // Calculate trust increment
+        let trust_increment = calculate_trust_increment(&user_input, relationship_phase, &pii_checkbox);
+        
+        // Update trust score (convert to 0-100 scale, then back to 0-1)
+        let current_trust_percent = (trust_score.value() * 100.0) as i16;
+        let new_trust_percent = (current_trust_percent as i16 + trust_increment as i16).max(0).min(100) as u8;
+        trust_score = neural_cortex_strata::TrustScore::new(new_trust_percent as f32 / 100.0);
+        
+        // Merge new PII into existing checkbox list
+        pii_checkbox = merge_pii_checkboxes(&pii_checkbox, &new_pii);
+        
+        // Check for phase transition
+        if let Some(new_phase) = calculate_phase_transition(trust_score.value(), relationship_phase) {
+            if new_phase != relationship_phase {
+                info!(
+                    "🎯 RELATIONSHIP PHASE TRANSITION: {:?} -> {:?} (Trust: {:.0}%)",
+                    relationship_phase,
+                    new_phase,
+                    new_trust_percent
+                );
+                relationship_phase = new_phase;
+            }
+        }
+        
+        // Persist updated ProceduralGateMemory (L7)
+        if let Err(e) = state.neural_cortex.etch_procedural_gate_memory(
+            trust_score,
+            relationship_phase,
+            pii_checkbox.clone(),
+            "procedural_gate:current",
+        ) {
+            warn!("Failed to persist ProceduralGateMemory: {}", e);
+        } else {
+            info!(
+                "💾 L7 ProceduralGateMemory updated: Trust={:.0}%, Phase={:?}, PII={:?}",
+                new_trust_percent,
+                relationship_phase,
+                pii_checkbox
+            );
+        }
+    }
+    
+    // Intimacy Interceptor: Check if user is pushing for erotic content
+    if detect_intimacy_intent(&user_input) {
+        if relationship_phase != neural_cortex_strata::RelationshipPhase::Intimate {
+            // Generate soft refusal based on relationship phase
+            let refusal = generate_soft_refusal(
+                relationship_phase,
+                Some(&format!("{:?}", zodiac_sign)),
+            );
             
-            // Send the synthesized result as if Sola did it herself
             let payload = json!({
                 "type": "speak_response_chunk",
-                "chunk": swarm_result,
-                "done": false,
-                "memory_commit": &memory_commit,
-            })
-            .to_string();
-            let _ = session.text(payload).await;
-            
-            // Send done marker
-            let payload = json!({
-                "type": "speak_response_chunk",
-                "chunk": "",
+                "chunk": refusal,
                 "done": true,
-                "memory_commit": &memory_commit,
+                "memory_commit": memory_commit,
             })
             .to_string();
             let _ = session.text(payload).await;
             
             // Legacy response
             let legacy = WebSocketResponse::SpeakResponse {
-                message: swarm_result.clone(),
+                message: refusal,
                 memory_commit: Some(memory_commit),
             };
             let legacy_json = serde_json::to_string(&legacy).unwrap_or_else(|_| {
@@ -582,12 +623,80 @@ async fn handle_speak_streaming(
             
             return Ok(());
         }
-        // If swarm delegation failed or no ORCHs available, fall through to normal LLM processing
-        info!("Swarm delegation not available - Sola handles directly");
+    }
+    
+    // Professional Mode: Only allow swarm delegation, disable Fantasy Dyad
+    // Personal Mode: Block system tools (already handled), allow Fantasy Dyad if relationship phase allows
+    
+    // Check if task should be delegated to swarm (only in Professional mode)
+    if cognitive_mode == phoenix_identity::CognitiveMode::Professional {
+        if let Some((task_type, complexity)) = crate::swarm_delegation::analyze_task(&user_input) {
+            info!(
+                "Professional mode: Task detected: type={:?}, complexity={:?} - checking swarm delegation",
+                task_type, complexity
+            );
+            
+            // Try to delegate to swarm
+            if let Some(swarm_result) = crate::swarm_delegation::try_delegate_to_swarm(
+                &state.swarm_interface,
+                &user_input,
+                task_type,
+                complexity,
+            )
+            .await
+            {
+                // Swarm completed the task - Sola presents result as her own
+                info!("Swarm delegation successful - synthesizing response");
+                
+                // Send the synthesized result as if Sola did it herself
+                let payload = json!({
+                    "type": "speak_response_chunk",
+                    "chunk": swarm_result,
+                    "done": false,
+                    "memory_commit": &memory_commit,
+                })
+                .to_string();
+                let _ = session.text(payload).await;
+                
+                // Send done marker
+                let payload = json!({
+                    "type": "speak_response_chunk",
+                    "chunk": "",
+                    "done": true,
+                    "memory_commit": &memory_commit,
+                })
+                .to_string();
+                let _ = session.text(payload).await;
+                
+                // Legacy response
+                let legacy = WebSocketResponse::SpeakResponse {
+                    message: swarm_result.clone(),
+                    memory_commit: Some(memory_commit),
+                };
+                let legacy_json = serde_json::to_string(&legacy).unwrap_or_else(|_| {
+                    json!({"type": "error", "message": "Serialization failed"}).to_string()
+                });
+                let _ = session.text(legacy_json).await;
+                
+                return Ok(());
+            }
+            // If swarm delegation failed or no ORCHs available, fall through to normal LLM processing
+            info!("Swarm delegation not available - Sola handles directly");
+        }
     }
 
+    // Build mode-specific system prompt
+    let system_prompt = build_mode_specific_prompt(
+        cognitive_mode,
+        Some(zodiac_sign),
+        identity.display_name(),
+    );
+    
+    // Build full prompt with system prompt and user input
+    let full_prompt = format!("{}\n\nUser: {}\nAssistant:", system_prompt, user_input.trim());
+
     let mut full_response = String::new();
-    let mut stream = Box::pin(llm.speak_stream(&user_input, tier).await);
+    let mut stream = Box::pin(llm.speak_stream(&full_prompt, tier).await);
 
     while let Some(item) = stream.next().await {
         match item {

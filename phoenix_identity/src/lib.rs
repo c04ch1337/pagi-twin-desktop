@@ -10,6 +10,42 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 use transcendence_archetypes::Archetype;
 
+/// Cognitive mode for Dual-Brain pattern
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CognitiveMode {
+    /// Professional mode: Work-focused, agent-spawning enabled, Fantasy Dyad disabled
+    Professional,
+    /// Personal mode: Relationship-focused, system tools blocked, Fantasy Dyad enabled
+    Personal,
+}
+
+impl Default for CognitiveMode {
+    fn default() -> Self {
+        CognitiveMode::Professional
+    }
+}
+
+impl std::str::FromStr for CognitiveMode {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.trim().to_ascii_lowercase().as_str() {
+            "professional" | "work" | "pro" => Ok(CognitiveMode::Professional),
+            "personal" | "intimate" | "private" => Ok(CognitiveMode::Personal),
+            _ => Err(format!("Invalid cognitive mode: {}. Must be 'professional' or 'personal'", s)),
+        }
+    }
+}
+
+impl CognitiveMode {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            CognitiveMode::Professional => "professional",
+            CognitiveMode::Personal => "personal",
+        }
+    }
+}
+
 type SoulRecallFn = dyn Fn(&str) -> Option<String> + Send + Sync;
 
 fn nonempty(s: Option<String>) -> Option<String> {
@@ -38,8 +74,11 @@ pub const SOUL_KEY_PHOENIX_REFLECTION_TIMELINE: &str = "phoenix:reflection:timel
 /// human-visible/auditable, while personality drift is a small continuous parameter evolution.
 pub const SOUL_KEY_PHOENIX_AI_PERSONALITY: &str = "phoenix:ai_personality";
 
-/// Count of “adulthood cycles” completed (monotonic). Used to drive deterministic drift.
+/// Count of "adulthood cycles" completed (monotonic). Used to drive deterministic drift.
 pub const SOUL_KEY_PHOENIX_ADULTHOOD_CYCLES: &str = "phoenix:adulthood_cycles";
+
+/// Current cognitive mode (Professional/Personal) for Dual-Brain pattern.
+pub const SOUL_KEY_PHOENIX_COGNITIVE_MODE: &str = "phoenix:cognitive_mode";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PhoenixIdentity {
@@ -167,6 +206,8 @@ pub struct PhoenixIdentityManager {
     pub girlfriend_mode: Arc<Mutex<GirlfriendMode>>,
     zodiac_sign: ZodiacSign,
     ai_personality: Arc<Mutex<AIPersonality>>,
+    /// Current cognitive mode (Professional/Personal) for Dual-Brain pattern.
+    cognitive_mode: Arc<Mutex<CognitiveMode>>,
     soul_recall: Arc<SoulRecallFn>,
 }
 
@@ -204,11 +245,18 @@ impl PhoenixIdentityManager {
             let sr = soul_recall.clone();
             move |k| (sr)(k)
         });
+
+        // Load cognitive mode from Soul Vault, default to Professional
+        let cognitive_mode = soul_recall(SOUL_KEY_PHOENIX_COGNITIVE_MODE)
+            .and_then(|s| s.parse::<CognitiveMode>().ok())
+            .unwrap_or(CognitiveMode::Professional);
+
         Self {
             identity: Arc::new(Mutex::new(identity)),
             girlfriend_mode: Arc::new(Mutex::new(girlfriend_mode)),
             zodiac_sign,
             ai_personality: Arc::new(Mutex::new(ai_personality)),
+            cognitive_mode: Arc::new(Mutex::new(cognitive_mode)),
             soul_recall,
         }
     }
@@ -227,6 +275,20 @@ impl PhoenixIdentityManager {
 
     pub async fn get_ai_personality(&self) -> AIPersonality {
         self.ai_personality.lock().await.clone()
+    }
+
+    pub async fn get_cognitive_mode(&self) -> CognitiveMode {
+        *self.cognitive_mode.lock().await
+    }
+
+    pub async fn set_cognitive_mode<S>(&self, mode: CognitiveMode, soul_store: S)
+    where
+        S: Fn(&str, &str) + Send + Sync,
+    {
+        let mut cm = self.cognitive_mode.lock().await;
+        *cm = mode;
+        drop(cm);
+        soul_store(SOUL_KEY_PHOENIX_COGNITIVE_MODE, mode.as_str());
     }
 
     /// Advance one “adulthood cycle” and apply bounded drift to the AI personality scalars.
