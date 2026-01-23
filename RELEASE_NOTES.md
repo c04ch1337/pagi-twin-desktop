@@ -1,188 +1,353 @@
-# Sola AGI v1.0.0 - Release Notes
+# Sola AGI v1.0.1 – Initial Release
 
-## 🕊️ Welcome to Sola AGI
-
-**Sola AGI** is your personal AI companion, designed to be emotionally intelligent, proactive, and voice-capable. This is the first stable release, bringing together 25 phases of development into a polished, consumer-ready desktop application.
-
-## ✨ Key Features
-
-### Chat-First Interface
-- **Moderate, clean UI** - Chat-centric design with collapsible panels
-- **Streaming responses** - Real-time message streaming for natural conversation
-- **Markdown support** - Rich text rendering with code blocks
-- **Memory integration** - Context-aware conversations with long-term memory
-
-### Voice Interaction
-- **Text-to-Speech (TTS)** - Sola speaks her responses aloud
-- **Speech-to-Text (STT)** - Voice input via microphone
-- **Voice commands** - `voice on/off`, `listen`, `speak <text>`
-- **Proactive voice alerts** - Spoken notifications for important messages
-
-### Browser Control
-- **Chrome CDP integration** - Control browser via chat commands
-- **Screenshot capture** - Visual browser state
-- **Click and type** - Full browser automation
-- **Local Chrome reuse** - Efficient resource usage
-
-### Dreams Panel
-- **Dream recording** - Capture and replay emotional moments
-- **Lucid dreaming** - Enhanced dream experiences
-- **Shared dreams** - Collaborative dream sessions
-- **Healing sessions** - Emotional processing and recovery
-
-### Proactive Communication
-- **Intelligent scheduling** - Sola reaches out when you need her
-- **Emotional support** - Comfort messages during difficult times
-- **Context-aware** - Proactive messages based on your activity
-- **OS notifications** - Desktop notifications for important messages
-
-### System Tray & Notifications
-- **System tray icon** - Always accessible, minimal footprint
-- **Desktop notifications** - Native OS notifications
-- **Background operation** - Runs quietly in the background
-- **Quick access** - Show/hide window from tray
-
-### Memory System
-- **Vaults** - Soul (encrypted), Mind, Body storage
-- **Cortex layers** - STM, WM, LTM, EPM, RFM
-- **Vector search** - Semantic memory retrieval
-- **MemoryBrowser** - Visual memory exploration (collapsible)
-
-### Ecosystem & Agents
-- **Repository management** - Import and manage GitHub repos
-- **Agent spawning** - Create and manage AI agents
-- **Skills system** - Extensible capability framework
-- **Tool integration** - Connect external tools and services
-
-### Additional Features
-- **Theme support** - Dark/light mode (`theme dark/light`)
-- **Global commands** - `status all`, `reset voice`, `help`
-- **Onboarding** - Welcome message on first launch
-- **Analytics** - Opt-in usage tracking (anonymous)
-- **Settings panel** - Comprehensive configuration UI
-
-## 📦 Installation
-
-### Windows
-1. Download `Sola AGI_1.0.0_x64_en-US.msi`
-2. Run the installer
-3. Follow the setup wizard
-4. Launch from Start Menu or desktop shortcut
-
-### macOS
-1. Download `Sola AGI_1.0.0_x64.dmg`
-2. Open the DMG file
-3. Drag Sola AGI to Applications folder
-4. Launch from Applications
-
-### Linux
-**AppImage:**
-1. Download `Sola AGI_1.0.0_x86_64.AppImage`
-2. Make executable: `chmod +x Sola\ AGI_1.0.0_x86_64.AppImage`
-3. Run: `./Sola\ AGI_1.0.0_x86_64.AppImage`
-
-**Debian/Ubuntu (.deb):**
-1. Download `sola-agi_1.0.0_amd64.deb`
-2. Install: `sudo dpkg -i sola-agi_1.0.0_amd64.deb`
-3. Launch from applications menu
-
-## 🚀 Quick Start
-
-1. **First Launch**
-   - Welcome message appears with feature overview
-   - Type `help` for available commands
-
-2. **Configure**
-   - Open Settings (click logo in sidebar)
-   - Add your OpenRouter API key
-   - Configure user name and preferences
-
-3. **Start Chatting**
-   - Type messages in the chat input
-   - Sola responds with streaming text
-   - Enable voice: `voice on` for spoken responses
-
-4. **Explore Features**
-   - `show dreams` - Open dreams panel
-   - `show browser` - Open browser control
-   - `status all` - View system status
-   - `theme dark/light` - Toggle theme
-
-## 📋 System Requirements
-
-- **OS**: Windows 10+, macOS 10.13+, Linux (Ubuntu 20.04+)
-- **RAM**: 4GB minimum, 8GB recommended
-- **Storage**: 500MB for app + models
-- **Network**: Internet connection for LLM API calls
-- **Backend**: Phoenix backend server (included)
-
-## 🔧 Configuration
-
-After installation, configure Sola via the Settings panel:
-
-- **API Keys**: OpenRouter API key (required for LLM)
-- **User Info**: Your name, preferred alias, relationship
-- **Phoenix Settings**: Name, pronouns, personality traits
-- **Voice**: TTS/STT engine selection
-- **Proactive**: Enable/disable proactive communication
-- **UI Customization**: Colors, fonts, branding
-
-Settings are stored in `.env` file in the installation directory.
-
-## 🎯 What's New in v1.0.0
-
-This is the first stable release, bringing together:
-
-- ✅ Complete chat interface with streaming
-- ✅ Voice input/output (TTS/STT)
-- ✅ Browser automation
-- ✅ Dreams panel for emotional processing
-- ✅ Proactive communication system
-- ✅ System tray and notifications
-- ✅ Memory system (vaults, cortex, vector)
-- ✅ Ecosystem and agent management
-- ✅ Theme support (dark/light)
-- ✅ Onboarding flow
-- ✅ Analytics (opt-in)
-- ✅ Release packaging (MSI/DMG/AppImage/.deb)
-
-## 🐛 Known Issues
-
-- Icons are placeholder (will be updated in future releases)
-- Code signing not configured (Windows/macOS installers may show warnings)
-- Some features require backend configuration via `.env`
-
-## 🔮 Coming Soon
-
-- Custom icon set
-- Code-signed installers
-- Auto-update system
-- Expanded help system
-- Enhanced voice modulation
-- More proactive triggers
-- Agent spawning UI enhancements
-
-## 📚 Documentation
-
-- **Setup Guide**: See `SETUP.md`
-- **Build Instructions**: See `phoenix-desktop-tauri/BUILD.md`
-- **Architecture**: See `docs/` directory
-- **API Reference**: See `docs/BACKEND_ARCHITECTURE.md`
-
-## 🤝 Support
-
-- **Issues**: Report on GitHub Issues
-- **Discussions**: GitHub Discussions
-- **Documentation**: Check `docs/` directory
-
-## 📄 License
-
-[Add your license information here]
-
-## 🙏 Acknowledgments
-
-Built with love and care. Sola is designed to be your companion, not just a tool.
+**Sola AGI** is a powerful, privacy-first, emotionally-aware AI companion platform — built for real-world interaction and personal productivity.
 
 ---
 
-**Sola AGI v1.0.0** - Your personal companion 🕊️
+## Key Features
+
+### 🗨️ Chat Interface
+- Token-by-token streaming responses
+- Markdown rendering with syntax highlighting
+- Code blocks with copy functionality
+- Message history and context management
+- Project-based conversations
+
+### 🎙️ Voice Interaction
+- Text-to-Speech (TTS) with emotional modulation
+- Speech-to-Text (STT) for dictation
+- Multiple TTS engines (Coqui, ElevenLabs, Piper)
+- Voice adapts to emotional state and affection levels
+- Hands-free operation
+
+### 🌐 Browser Control
+- Local Chrome control via Chrome DevTools Protocol (CDP)
+- Navigate, scrape, screenshot, click, type
+- CSS selector-based automation
+- Full-page and element screenshots
+- Login automation and data extraction
+
+### 🌙 Dreams System
+- **Lucid Dreams:** Enhanced awareness and control
+- **Shared Dreams:** Collaborative sessions with Sola
+- **Healing Dreams:** Emotional processing and recovery
+- **Dream Recordings:** Encrypted storage in Soul vault
+- Emotional tagging and replay capability
+
+### 🔔 Proactive Communication
+- Sola reaches out based on curiosity, time, and emotional state
+- Desktop notifications (Tauri mode)
+- Voice-enabled proactive messages
+- Context-aware and emotionally intelligent
+
+### 🧠 Memory System
+- **Soul Vault:** Encrypted personal data (dreams, intimate moments)
+- **Mind Vault:** Thoughts, ideas, semantic knowledge
+- **Body Vault:** Screenshots, system info, physical world data
+- **Cortex Layers:** STM, WM, LTM, EPM, RFM
+- Semantic search across all memories
+
+### 🤖 Agent Spawning
+- Create specialized AI agents for specific tasks
+- Research, coding, analysis, and task agents
+- Autonomous operation with memory isolation
+- Multi-agent coordination
+- Agent communication and progress reporting
+
+### 🌱 Ecosystem Management
+- Import GitHub repositories for context
+- Code analysis and documentation parsing
+- Dependency mapping and architecture understanding
+- Private repository support with GitHub PAT
+
+### 🛡️ WebGuard Security
+- Passive web vulnerability scanning
+- OWASP Top 10 detection
+- Vulnerability reports and recommendations
+- Privacy-focused (no data transmission)
+
+### 🧬 Sub-Agent Evolution
+- MITRE ATT&CK framework integration
+- GitHub enforcement and security checks
+- Autonomous evolution loop
+- Security-focused agent development
+
+### 🎨 Customization
+- Dark/light theme support
+- Custom branding (logo, favicon, colors)
+- Font customization
+- Custom CSS support
+- Collapsible panels (hidden by default)
+
+### 🔒 Security & Privacy
+- Gated system access with consent management
+- Encrypted Soul vault for sensitive data
+- Local-first architecture
+- No data transmission without consent
+- Opt-in analytics
+
+---
+
+## Installation
+
+Download the installer for your platform:
+
+- **Windows:** `Sola AGI_1.0.1_x64_en-US.msi`
+- **macOS:** `Sola AGI_1.0.1_x64.dmg`
+- **Linux (AppImage):** `Sola AGI_1.0.1_amd64.AppImage`
+- **Linux (Debian):** `sola-agi_1.0.1_amd64.deb`
+
+### Windows Installation
+1. Download `Sola AGI_1.0.1_x64_en-US.msi`
+2. Double-click to run installer
+3. Follow installation wizard
+4. Launch from Start Menu or Desktop shortcut
+
+### macOS Installation
+1. Download `Sola AGI_1.0.1_x64.dmg`
+2. Open DMG file
+3. Drag "Sola AGI" to Applications folder
+4. Launch from Applications
+5. If Gatekeeper blocks: System Preferences → Security → "Open Anyway"
+
+### Linux Installation (AppImage)
+1. Download `Sola AGI_1.0.1_amd64.AppImage`
+2. Make executable: `chmod +x Sola_AGI_1.0.1_amd64.AppImage`
+3. Run: `./Sola_AGI_1.0.1_amd64.AppImage`
+
+### Linux Installation (Debian)
+1. Download `sola-agi_1.0.1_amd64.deb`
+2. Install: `sudo dpkg -i sola-agi_1.0.1_amd64.deb`
+3. Launch: `sola-agi` or from application menu
+
+---
+
+## Quick Start
+
+### First Launch
+1. Install and run Sola AGI
+2. Complete onboarding (optional)
+3. Type anything in chat — Sola responds
+4. Explore features with `help` command
+
+### Essential Commands
+```
+help                    # Complete command reference
+voice on                # Enable voice output
+listen                  # Start voice input
+show dreams             # Open Dreams panel
+show memory             # Open Memory Browser
+system grant            # Grant browser control consent
+notify test             # Test desktop notifications
+theme dark              # Switch to dark theme
+```
+
+### Browser Control Setup
+1. Launch Chrome with debugging:
+   ```bash
+   chrome.exe --remote-debugging-port=9222
+   ```
+2. In Sola chat:
+   ```
+   use chrome for browsing
+   system grant
+   system browser navigate https://duckduckgo.com
+   ```
+
+### Voice Interaction
+```
+voice on
+listen
+speak Hello, how are you today?
+```
+
+### Dreams & Emotional Processing
+```
+show dreams
+lucid dream
+dream with me
+heal anxiety
+```
+
+---
+
+## Configuration
+
+### Environment Variables
+
+Create `.env` file in project root:
+
+```env
+# Core Settings
+PHOENIX_NAME=Sola
+USER_NAME=User
+OPENROUTER_API_KEY=your_key_here
+DEFAULT_LLM_MODEL=deepseek/deepseek-v3.2
+
+# Voice Settings
+TTS_ENGINE=coqui
+VOICE_LILT=0.23
+WARMTH_CURVE=1.8
+
+# Browser Settings
+BROWSER_TYPE=chrome
+BROWSER_DEBUG_PORT=9222
+
+# Proactive Communication
+PROACTIVE_ENABLED=true
+PROACTIVE_INTERVAL_SECS=600
+
+# GitHub Integration
+GITHUB_PAT=your_github_token
+GITHUB_USERNAME=your_username
+```
+
+### UI Customization
+
+Access Settings panel (gear icon) for:
+- Custom logo and favicon
+- Color scheme customization
+- Font selection
+- Custom CSS
+
+---
+
+## Known Issues
+
+### Current Limitations
+- Code signing not configured (self-signed builds may trigger security warnings)
+- Screenshot placeholders in help system (actual screenshots coming soon)
+- Auto-update not yet implemented
+- Some voice wake words not yet supported
+
+### Workarounds
+
+**Windows Security Warning:**
+- Click "More info" → "Run anyway"
+- Or: Add exception in Windows Defender
+
+**macOS Gatekeeper:**
+- System Preferences → Security → "Open Anyway"
+- Or: `xattr -cr "/Applications/Sola AGI.app"`
+
+**Linux AppImage:**
+- Ensure FUSE is installed: `sudo apt install fuse`
+- Make executable: `chmod +x Sola_AGI.AppImage`
+
+---
+
+## Coming Soon
+
+### Planned Features
+- Code signing for all platforms
+- Auto-update mechanism
+- More voice wake words
+- Ecosystem UI logs panel
+- Agent panel polish
+- Additional TTS engines
+- Mobile companion app
+- Cloud sync (optional)
+
+---
+
+## Documentation
+
+- **Complete Build Guide:** [`docs/BUILD.md`](docs/BUILD.md)
+- **Help System:** Type `help` in chat for comprehensive command reference
+- **Architecture:** [`docs/BACKEND_ARCHITECTURE.md`](docs/BACKEND_ARCHITECTURE.md)
+- **Frontend Guide:** [`docs/FRONTEND_UI_ARCHITECTURE.md`](docs/FRONTEND_UI_ARCHITECTURE.md)
+- **Phase 30 Summary:** [`docs/PHASE_30_RELEASE_POLISH.md`](docs/PHASE_30_RELEASE_POLISH.md)
+
+---
+
+## Support
+
+### Getting Help
+- **In-App Help:** Type `help` in chat
+- **GitHub Issues:** https://github.com/c04ch1337/pagi-twin-desktop/issues
+- **Documentation:** [`docs/`](docs/) directory
+
+### Reporting Issues
+1. Check existing issues first
+2. Include system information (OS, version)
+3. Describe steps to reproduce
+4. Attach logs if available
+
+---
+
+## Technical Details
+
+### System Requirements
+
+**Minimum:**
+- OS: Windows 10, macOS 10.13, Ubuntu 20.04 (or equivalent)
+- RAM: 4 GB
+- Disk: 500 MB free space
+- Internet: Required for LLM API calls
+
+**Recommended:**
+- OS: Windows 11, macOS 13+, Ubuntu 22.04+
+- RAM: 8 GB
+- Disk: 2 GB free space
+- Internet: Broadband connection
+
+### Technologies
+- **Frontend:** React, TypeScript, Vite, TailwindCSS
+- **Backend:** Rust, Axum, Tokio
+- **Desktop:** Tauri v2
+- **LLM:** OpenRouter API (multiple models supported)
+- **Voice:** Coqui TTS, ElevenLabs, Piper
+- **Browser:** Chrome DevTools Protocol (CDP)
+
+---
+
+## License
+
+See [`LICENSE`](LICENSE) file for details.
+
+---
+
+## Acknowledgments
+
+Built with:
+- Tauri - Desktop application framework
+- React - UI framework
+- Rust - Backend language
+- OpenRouter - LLM API gateway
+- Coqui TTS - Open-source text-to-speech
+
+---
+
+## Changelog
+
+### v1.0.1 (2026-01-23)
+
+**Initial Release**
+
+- ✅ Complete chat interface with streaming
+- ✅ Voice interaction (TTS/STT)
+- ✅ Browser control via CDP
+- ✅ Dreams system (lucid, shared, healing)
+- ✅ Proactive communication
+- ✅ Memory system (Soul, Mind, Body vaults)
+- ✅ Agent spawning and management
+- ✅ Ecosystem repository import
+- ✅ WebGuard security scanning
+- ✅ Sub-agent evolution with MITRE ATT&CK
+- ✅ Theme customization
+- ✅ Desktop notifications
+- ✅ Comprehensive help system
+- ✅ Tauri native desktop app
+- ✅ Cross-platform support (Windows, macOS, Linux)
+
+---
+
+**Thank you for trying Sola AGI!**
+
+Type `help` in chat for commands. Feedback and contributions welcome!
+
+---
+
+**Version:** 1.0.1  
+**Release Date:** 2026-01-23  
+**Build:** Phase 30 Complete

@@ -1,105 +1,82 @@
-# Sola AGI - Icon Generation Script (PowerShell)
-# Generates placeholder icon and all platform-specific formats
+# Sola AGI Icon Generation Script (Windows PowerShell)
+# Converts SVG to PNG and generates all platform icons
 
-$ErrorActionPreference = "Stop"
+param(
+    [string]$SvgPath = "src-tauri/icons/icon.svg",
+    [string]$OutputDir = "src-tauri/icons"
+)
 
-Write-Host "🎨 Sola AGI Icon Generation" -ForegroundColor Cyan
-Write-Host "============================" -ForegroundColor Cyan
-Write-Host ""
+Write-Host "Sola AGI Icon Generator" -ForegroundColor Cyan
+Write-Host "=========================" -ForegroundColor Cyan
 
-# Check if we're in the right directory
-if (-not (Test-Path "package.json") -or -not (Test-Path "src-tauri")) {
-    Write-Host "❌ Error: Must run from phoenix-desktop-tauri directory" -ForegroundColor Red
+# Check for required tools
+$inkscapePath = Get-Command inkscape -ErrorAction SilentlyContinue
+$magickPath = Get-Command magick -ErrorAction SilentlyContinue
+
+if (-not $inkscapePath -and -not $magickPath) {
+    Write-Host "Error: Neither Inkscape nor ImageMagick found." -ForegroundColor Red
+    Write-Host ""
+    Write-Host "Please install one of the following:" -ForegroundColor Yellow
+    Write-Host "  - Inkscape: https://inkscape.org/release/" -ForegroundColor White
+    Write-Host "  - ImageMagick: https://imagemagick.org/script/download.php" -ForegroundColor White
+    Write-Host ""
+    Write-Host "Or use an online tool:" -ForegroundColor Yellow
+    Write-Host "  1. Open icon.svg in a browser" -ForegroundColor White
+    Write-Host "  2. Take a screenshot or use https://svgtopng.com/" -ForegroundColor White
+    Write-Host "  3. Save as icon.png (1024x1024)" -ForegroundColor White
+    Write-Host "  4. Run: cargo tauri icon src-tauri/icons/icon.png" -ForegroundColor White
     exit 1
 }
 
-# Check for Python
-$pythonCmd = $null
-foreach ($cmd in @("python", "python3", "py")) {
-    if (Get-Command $cmd -ErrorAction SilentlyContinue) {
-        $pythonCmd = $cmd
-        break
-    }
+# Convert SVG to PNG
+$pngPath = Join-Path $OutputDir "icon.png"
+
+if ($inkscapePath) {
+    Write-Host "Converting SVG to PNG using Inkscape..." -ForegroundColor Yellow
+    & inkscape $SvgPath --export-type=png --export-filename=$pngPath --export-width=1024 --export-height=1024
+}
+elseif ($magickPath) {
+    Write-Host "Converting SVG to PNG using ImageMagick..." -ForegroundColor Yellow
+    & magick convert $SvgPath -resize 1024x1024 $pngPath
 }
 
-if (-not $pythonCmd) {
-    Write-Host "❌ Error: Python not found" -ForegroundColor Red
-    Write-Host "Install Python 3: https://www.python.org/downloads/"
+if (-not (Test-Path $pngPath)) {
+    Write-Host "Error: Failed to create icon.png" -ForegroundColor Red
     exit 1
 }
 
-# Check if Pillow is installed
-$pillowInstalled = & $pythonCmd -c "import PIL" 2>$null
-if ($LASTEXITCODE -ne 0) {
-    Write-Host "⚠️  Pillow (PIL) not installed" -ForegroundColor Yellow
-    Write-Host "Installing Pillow..."
-    & $pythonCmd -m pip install Pillow
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host "❌ Failed to install Pillow" -ForegroundColor Red
-        Write-Host "Install manually: pip install Pillow"
-        exit 1
-    }
+Write-Host "Created icon.png (1024x1024)" -ForegroundColor Green
+
+# Check for Tauri CLI
+$tauriPath = Get-Command cargo-tauri -ErrorAction SilentlyContinue
+if (-not $tauriPath) {
+    Write-Host "Installing Tauri CLI..." -ForegroundColor Yellow
+    cargo install tauri-cli
 }
 
-# Create icons directory if it doesn't exist
-if (-not (Test-Path "src-tauri\icons")) {
-    New-Item -ItemType Directory -Path "src-tauri\icons" | Out-Null
+# Generate platform icons
+Write-Host "Generating platform icons..." -ForegroundColor Yellow
+cargo tauri icon $pngPath
+
+if ($LASTEXITCODE -eq 0) {
+    Write-Host ""
+    Write-Host "Icon generation complete!" -ForegroundColor Green
+    Write-Host ""
+    Write-Host "Generated files:" -ForegroundColor Cyan
+    Get-ChildItem $OutputDir -Filter "*.png" | ForEach-Object { Write-Host "  $($_.Name)" -ForegroundColor White }
+    Get-ChildItem $OutputDir -Filter "*.ico" | ForEach-Object { Write-Host "  $($_.Name)" -ForegroundColor White }
+    Get-ChildItem $OutputDir -Filter "*.icns" | ForEach-Object { Write-Host "  $($_.Name)" -ForegroundColor White }
+    Write-Host ""
+    Write-Host "Next steps:" -ForegroundColor Yellow
+    Write-Host "  1. Review the generated icons" -ForegroundColor White
+    Write-Host "  2. Rebuild Tauri: npm run build" -ForegroundColor White
+    Write-Host "  3. Test the installer" -ForegroundColor White
 }
-
-# Check for existing icon
-if (Test-Path "src-tauri\icons\icon.png") {
-    Write-Host "⚠️  Icon already exists: src-tauri\icons\icon.png" -ForegroundColor Yellow
-    $overwrite = Read-Host "Overwrite? (y/N)"
-    if ($overwrite -ne "y" -and $overwrite -ne "Y") {
-        Write-Host "Using existing icon..."
-    } else {
-        Write-Host "🎨 Generating new placeholder icon..." -ForegroundColor Green
-        & $pythonCmd generate-placeholder-icon.py
-    }
-} else {
-    Write-Host "🎨 Generating placeholder icon..." -ForegroundColor Green
-    & $pythonCmd generate-placeholder-icon.py
+else {
+    Write-Host "Error: Icon generation failed" -ForegroundColor Red
+    Write-Host ""
+    Write-Host "Manual fallback:" -ForegroundColor Yellow
+    Write-Host "  1. Open icon.svg in a browser or editor" -ForegroundColor White
+    Write-Host "  2. Export as 1024x1024 PNG" -ForegroundColor White
+    Write-Host "  3. Run: cargo tauri icon src-tauri/icons/icon.png" -ForegroundColor White
 }
-
-# Verify icon exists
-if (-not (Test-Path "src-tauri\icons\icon.png")) {
-    Write-Host "❌ Error: Icon not created" -ForegroundColor Red
-    exit 1
-}
-
-Write-Host ""
-Write-Host "📦 Generating platform-specific icons..." -ForegroundColor Green
-
-# Check if cargo tauri is available
-$tauriCmd = $null
-if (Get-Command "cargo-tauri" -ErrorAction SilentlyContinue) {
-    $tauriCmd = "cargo-tauri"
-} elseif (Get-Command "npx" -ErrorAction SilentlyContinue) {
-    $tauriCmd = "npx"
-}
-
-if ($tauriCmd -eq "cargo-tauri") {
-    cargo tauri icon src-tauri\icons\icon.png
-} elseif ($tauriCmd -eq "npx") {
-    npx @tauri-apps/cli icon src-tauri\icons\icon.png
-} else {
-    Write-Host "❌ Error: Neither cargo-tauri nor npx found" -ForegroundColor Red
-    Write-Host "Install Tauri CLI: cargo install tauri-cli"
-    Write-Host "Or ensure npx is available: npm install -g npx"
-    exit 1
-}
-
-# Verify generated icons
-Write-Host ""
-Write-Host "✅ Icon generation complete!" -ForegroundColor Green
-Write-Host ""
-Write-Host "Generated files:" -ForegroundColor Cyan
-Get-ChildItem src-tauri\icons\ | Format-Table Name, Length, LastWriteTime
-
-Write-Host ""
-Write-Host "📋 Next steps:" -ForegroundColor Cyan
-Write-Host "1. Review icons: explorer src-tauri\icons\"
-Write-Host "2. Rebuild app: npm run build"
-Write-Host "3. Test installer with new icons"
-Write-Host ""
-Write-Host "🕊️ Ready to build with new icons!" -ForegroundColor Cyan

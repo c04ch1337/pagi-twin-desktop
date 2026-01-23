@@ -480,6 +480,111 @@ async fn handle_speak_streaming(
         let _ = session.text(payload).await;
         return Ok(());
     }
+    
+    // Intercept swarm status command (power-user feature)
+    if crate::swarm_delegation::is_swarm_status_command(&user_input) {
+        let response_text = crate::swarm_delegation::format_swarm_status(&state.swarm_interface).await;
+        let payload = json!({
+            "type": "speak_response_chunk",
+            "chunk": response_text,
+            "done": true,
+            "memory_commit": memory_commit,
+        })
+        .to_string();
+        let _ = session.text(payload).await;
+        
+        // Legacy response
+        let legacy = WebSocketResponse::SpeakResponse {
+            message: response_text,
+            memory_commit: Some(memory_commit),
+        };
+        let legacy_json = serde_json::to_string(&legacy).unwrap_or_else(|_| {
+            json!({"type": "error", "message": "Serialization failed"}).to_string()
+        });
+        let _ = session.text(legacy_json).await;
+        
+        return Ok(());
+    }
+    
+    // Intercept swarm alerts command (power-user feature)
+    if crate::swarm_delegation::is_swarm_alerts_command(&user_input) {
+        let response_text = crate::swarm_delegation::format_swarm_alerts(&state.swarm_interface).await;
+        let payload = json!({
+            "type": "speak_response_chunk",
+            "chunk": response_text,
+            "done": true,
+            "memory_commit": memory_commit,
+        })
+        .to_string();
+        let _ = session.text(payload).await;
+        
+        // Legacy response
+        let legacy = WebSocketResponse::SpeakResponse {
+            message: response_text,
+            memory_commit: Some(memory_commit),
+        };
+        let legacy_json = serde_json::to_string(&legacy).unwrap_or_else(|_| {
+            json!({"type": "error", "message": "Serialization failed"}).to_string()
+        });
+        let _ = session.text(legacy_json).await;
+        
+        return Ok(());
+    }
+
+    // Check if task should be delegated to swarm (hidden from user)
+    if let Some((task_type, complexity)) = crate::swarm_delegation::analyze_task(&user_input) {
+        info!(
+            "Task detected: type={:?}, complexity={:?} - checking swarm delegation",
+            task_type, complexity
+        );
+        
+        // Try to delegate to swarm
+        if let Some(swarm_result) = crate::swarm_delegation::try_delegate_to_swarm(
+            &state.swarm_interface,
+            &user_input,
+            task_type,
+            complexity,
+        )
+        .await
+        {
+            // Swarm completed the task - Sola presents result as her own
+            info!("Swarm delegation successful - synthesizing response");
+            
+            // Send the synthesized result as if Sola did it herself
+            let payload = json!({
+                "type": "speak_response_chunk",
+                "chunk": swarm_result,
+                "done": false,
+                "memory_commit": &memory_commit,
+            })
+            .to_string();
+            let _ = session.text(payload).await;
+            
+            // Send done marker
+            let payload = json!({
+                "type": "speak_response_chunk",
+                "chunk": "",
+                "done": true,
+                "memory_commit": &memory_commit,
+            })
+            .to_string();
+            let _ = session.text(payload).await;
+            
+            // Legacy response
+            let legacy = WebSocketResponse::SpeakResponse {
+                message: swarm_result.clone(),
+                memory_commit: Some(memory_commit),
+            };
+            let legacy_json = serde_json::to_string(&legacy).unwrap_or_else(|_| {
+                json!({"type": "error", "message": "Serialization failed"}).to_string()
+            });
+            let _ = session.text(legacy_json).await;
+            
+            return Ok(());
+        }
+        // If swarm delegation failed or no ORCHs available, fall through to normal LLM processing
+        info!("Swarm delegation not available - Sola handles directly");
+    }
 
     let mut full_response = String::new();
     let mut stream = Box::pin(llm.speak_stream(&user_input, tier).await);

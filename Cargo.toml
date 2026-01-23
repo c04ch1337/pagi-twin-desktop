@@ -1,6 +1,8 @@
 [workspace]
 resolver = "2"
 members = [
+    "pagi-twin",
+    "pagi-utils",
     "common_types",
     "intimate_girlfriend_module",
     "cerebrum_nexus",
@@ -33,6 +35,7 @@ members = [
     "llm_orchestrator",
     "synaptic_pulse_distributor",
     "agent_spawner",
+    "sub_agent_evolution",
     "evolution_pipeline",
     "testing_framework",
     "caos",
@@ -67,6 +70,11 @@ members = [
     "hardware_detector",
     "home_automation_bridge",
     "horoscope_archetypes",
+    "network_security_agent",
+    "sandbox_manager",
+    "malware_sandbox_agent",
+    "webguard",
+    "reporting_agent",
 ]
 exclude = [
     "phoenix-desktop-tauri/src-tauri",

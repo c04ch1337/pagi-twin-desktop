@@ -43,6 +43,19 @@
 
 ---
 
+## 🕊️ Autonomous Digital Twin
+
+Sola is designed to operate as a **true digital twin** — an extension of your intent that remembers everything, acts proactively, and self-evolves.
+
+**For developers using Cursor IDE:**
+1. Open a new Composer tab
+2. Paste the content of [`docs/cursor-prompts/00-autonomous-directive.md`](docs/cursor-prompts/00-autonomous-directive.md)
+3. Sola takes over — no more prompts needed
+
+See [`AUTONOMOUS_OPERATION.md`](AUTONOMOUS_OPERATION.md) for full details.
+
+---
+
 ## Current Version
 
 **v1.0.0** – [Download installers](https://github.com/c04ch1337/pagi-twin-desktop/releases/latest)
@@ -211,11 +224,28 @@ graph TD
 
 ## Documentation
 
-- [`QUICK_START.md`](QUICK_START.md) — Get started in 5 minutes
-- [`BUILD_INSTRUCTIONS.md`](BUILD_INSTRUCTIONS.md) — Build from source
-- [`RELEASE_NOTES.md`](RELEASE_NOTES.md) — Latest release information
+### Quick Links
+- [`DOCUMENTATION_INDEX.md`](DOCUMENTATION_INDEX.md) — **Complete documentation index**
 - [`SECURITY.md`](SECURITY.md) — Security policies and best practices
-- [`docs/`](docs/) — Comprehensive technical documentation
+- [`AUTONOMOUS_OPERATION.md`](AUTONOMOUS_OPERATION.md) — Autonomous operation guide
+- [`REPOSITORY_STRUCTURE.md`](REPOSITORY_STRUCTURE.md) — Project structure
+
+### Getting Started
+- [`docs/setup-guides/`](docs/setup-guides/) — Setup and configuration
+  - [`QUICK_START.md`](docs/setup-guides/QUICK_START.md) — Get started in 5 minutes
+  - [`SETUP.md`](docs/setup-guides/SETUP.md) — Complete setup guide
+  - [`OPENROUTER_SETUP_GUIDE.md`](docs/setup-guides/OPENROUTER_SETUP_GUIDE.md) — API setup
+
+### Building & Deployment
+- [`docs/build-guides/`](docs/build-guides/) — Build instructions
+  - [`BUILD_INSTRUCTIONS.md`](docs/build-guides/BUILD_INSTRUCTIONS.md) — Build from source
+  - [`BUILD_WINDOWS.md`](docs/build-guides/BUILD_WINDOWS.md) — Windows build
+- [`docs/releases/`](docs/releases/) — Release documentation
+  - [`RELEASE_NOTES.md`](docs/releases/RELEASE_NOTES.md) — Latest release
+  - [`GITHUB_RELEASE_GUIDE.md`](docs/releases/GITHUB_RELEASE_GUIDE.md) — Release process
+
+### Architecture & Design
+- [`docs/`](docs/) — Technical documentation
   - [`BACKEND_ARCHITECTURE.md`](docs/BACKEND_ARCHITECTURE.md) — Backend design
   - [`FRONTEND_UI_ARCHITECTURE.md`](docs/FRONTEND_UI_ARCHITECTURE.md) — Frontend design
   - [`LAYERED_MEMORY_ARCHITECTURE.md`](docs/LAYERED_MEMORY_ARCHITECTURE.md) — Memory system
@@ -237,13 +267,15 @@ cargo test -p neural_cortex_strata
 cargo test -p agent_spawner
 
 # Test browser automation
-./test-browser-e2e.sh
+./tests/scripts/test-browser-e2e.sh
 
 # Test proactive communication
-./test-proactive.sh
+./tests/scripts/test-proactive.sh
 ```
 
-See [`DEV_TEST_GUIDE.md`](DEV_TEST_GUIDE.md) for comprehensive testing instructions.
+See [`docs/testing/`](docs/testing/) for comprehensive testing documentation:
+- [`DEV_TEST_GUIDE.md`](docs/testing/DEV_TEST_GUIDE.md) — Complete testing guide
+- [`tests/`](tests/) — Test scripts and utilities
 
 ---
 
@@ -298,13 +330,37 @@ pagi-twin-desktop/
 
 We welcome contributions from the community!
 
+### 📋 Before Contributing
+
+**IMPORTANT:** Please read [`CONTRIBUTING.md`](CONTRIBUTING.md) for:
+- File organization rules
+- Documentation placement guidelines
+- Script placement rules
+- Naming conventions
+- Code guidelines
+
+### Quick Guidelines
+
+**File Placement:**
+- Setup docs → `docs/setup-guides/`
+- Build docs → `docs/build-guides/`
+- Test docs → `docs/testing/`
+- Test scripts → `tests/scripts/`
+- Build scripts → `scripts/build/`
+- Architecture docs → `docs/`
+
+**Never add loose files to root directory!**
+
 ### How to Contribute
 
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+1. Read [`CONTRIBUTING.md`](CONTRIBUTING.md)
+2. Fork the repository
+3. Create a feature branch (`git checkout -b feature/amazing-feature`)
+4. Follow file placement rules
+5. Update relevant README files
+6. Commit your changes (`git commit -m 'Add amazing feature'`)
+7. Push to the branch (`git push origin feature/amazing-feature`)
+8. Open a Pull Request
 
 ---
 
@@ -349,19 +405,23 @@ See [`LICENSE`](LICENSE) for full license text.
 
 ---
 
-## Appendix: Sandbox Architecture
+## Appendix: Sandbox Sub-Agent Architecture
 
 ### Overview
 
-SOLA includes an **isolated Sandbox** system for safe analysis of potentially malicious files, exploits, PST/email archives, and suspicious documents. The sandbox leverages the existing [`EcosystemManager`](ecosystem_manager/src/lib.rs) infrastructure while adding defense-in-depth security controls.
+SOLA includes an **autonomous Sandbox Sub-Agent** for safe analysis of potentially malicious files, exploits, PST/email archives, and suspicious documents. The sandbox operates as a specialized ORCH (Tier 3 worker) with playbook-driven analysis, MITRE ATT&CK integration, and self-improvement capabilities through the [`AutonomousEvolutionLoop`](autonomous_evolution_loop/src/lib.rs).
 
-### Architecture
+### Sub-Agent Architecture
 
 **Core Design:**
-- Sandbox path: `./data/sandbox/<session_id>/`
-- Treated as a special "LIVE PROJECT" with strict isolation
-- Dual upload modes: normal (persistent) vs sandbox (isolated, temporary)
-- Files never escape sandbox directory or execute
+- **SandboxAgent** — Specialized ORCH sub-agent spawned on-demand via `sandbox spawn`
+- **Playbook-Driven** — YAML-based analysis workflows (stored in `./playbooks/sandbox.yaml`)
+- **Memory Integration** — STM for current analysis, LTM/EPM for learned vulnerability patterns
+- **Self-Improvement** — Reflects on analysis accuracy, updates playbook and memory after analyses
+- **MITRE ATT&CK** — Maps file behaviors to tactics/techniques for threat intelligence
+- **Isolation** — Sandbox path: `./data/sandbox/<session_id>/` with strict security controls
+- **Dual Upload Modes** — Normal (persistent) vs sandbox (isolated, temporary)
+- **Proactive Evolution** — Re-analyzes files on new ATT&CK updates, self-improves in background
 
 **Security Layers (Defense-in-Depth):**
 1. **Path Validation** — Canonicalization + prefix check prevents directory traversal
@@ -398,13 +458,16 @@ VIRUSTOTAL_ENABLED=true
 
 **Chat Commands:**
 ```bash
+# Spawn the SandboxAgent sub-agent
+sandbox spawn
+
 # Upload file to sandbox
 sandbox upload suspicious.exe
 
-# Full analysis (VirusTotal + parsing)
+# Full analysis (VirusTotal + MITRE ATT&CK + PST parsing)
 sandbox analyze report.pst
 
-# Malware scan only
+# Malware scan only (VirusTotal)
 sandbox scan document.pdf
 
 # List sandbox contents
@@ -469,77 +532,203 @@ fn validate_sandbox_path(path: &Path, sandbox_root: &Path) -> Result<PathBuf> {
   - Phishing indicators
   - Malicious links
 
+### Sub-Agent Playbook Structure
+
+**Playbook Example** (`./playbooks/sandbox.yaml`):
+```yaml
+playbook: sandbox_analysis
+version: 1.0
+agent: SandboxAgent
+memory:
+  stm: current_analysis_context
+  ltm: learned_vulnerability_patterns
+  epm: past_exploit_detections
+
+steps:
+  - name: initial_scan
+    action: virus_total_scan
+    params:
+      file_path: <input>
+      
+  - name: mitre_mapping
+    action: map_to_attck
+    params:
+      behaviors: [file_deletion, obfuscation, injection, masquerading]
+    api: https://attack.mitre.org/api/v1/techniques
+    mappings:
+      - behavior: file_deletion
+        technique: T1070.004  # Indicator Removal
+      - behavior: obfuscation
+        technique: T1027      # Obfuscated Files or Information
+      - behavior: double_extension
+        technique: T1036.007  # Masquerading: Double File Extension
+        
+  - name: pst_parse
+    action: extract_emails
+    params:
+      format: [pst, ost, eml]
+    analyze:
+      - malformed_headers
+      - executable_attachments
+      - phishing_indicators
+      - malicious_links
+      
+  - name: report
+    action: summarize_results
+    output: chat
+    include:
+      - virustotal_detection_ratio
+      - mitre_attck_techniques
+      - email_summary
+      - threat_level
+
+evolution_rules:
+  - condition: analysis_accuracy < 0.8
+    action: update_ltm_pattern
+    params:
+      new_pattern: <learned_vulnerability>
+      
+  - condition: new_attck_update_available
+    action: reanalyze_recent_files
+    params:
+      lookback_days: 7
+      
+  - condition: analyses_completed >= 10
+    action: trigger_evolution_loop
+    params:
+      reflect_on: [accuracy, false_positives, missed_threats]
+```
+
 ### Architecture Diagram
 
 ```mermaid
 graph TB
-    A[User Upload] -->|Mode Check| B{Sandbox Mode?}
-    B -->|No| C[Skills/Memory/Vector KB]
-    B -->|Yes| D[Sandbox Manager]
-    D --> E[Path Validation]
-    E -->|Valid| F[./data/sandbox/session/]
-    E -->|Invalid| G[Reject + Audit Log]
-    F --> H[VirusTotal API]
-    F --> I[PST Parser]
-    H --> J[Results to Chat]
-    I --> J
-    F --> K[Auto-cleanup Task]
+    A[User Command] -->|sandbox spawn| B[Spawn SandboxAgent]
+    B --> C[Load Playbook]
+    C --> D[Initialize STM/LTM]
     
-    style D fill:#f96,stroke:#333,stroke-width:3px
-    style E fill:#ff9,stroke:#333,stroke-width:2px
-    style F fill:#9cf,stroke:#333,stroke-width:2px
-    style G fill:#f66,stroke:#333,stroke-width:2px
+    E[User Upload] -->|Mode Check| F{Sandbox Mode?}
+    F -->|No| G[Skills/Memory/Vector KB]
+    F -->|Yes| H[SandboxAgent]
+    
+    H --> I[Path Validation]
+    I -->|Valid| J[./data/sandbox/session/]
+    I -->|Invalid| K[Reject + Audit Log]
+    
+    J --> L[Execute Playbook]
+    L --> M[VirusTotal API]
+    L --> N[MITRE ATT&CK Mapping]
+    L --> O[PST Parser]
+    
+    M --> P[Results to Chat]
+    N --> P
+    O --> P
+    
+    P --> Q[Update STM/LTM]
+    Q --> R{Evolution Trigger?}
+    R -->|Yes| S[AutonomousEvolutionLoop]
+    S --> T[Update Playbook/Memory]
+    
+    J --> U[Auto-cleanup Task]
+    
+    style H fill:#f96,stroke:#333,stroke-width:3px
+    style I fill:#ff9,stroke:#333,stroke-width:2px
+    style J fill:#9cf,stroke:#333,stroke-width:2px
+    style K fill:#f66,stroke:#333,stroke-width:2px
+    style S fill:#e1ffe1,stroke:#333,stroke-width:2px
 ```
+
+### MITRE ATT&CK Integration
+
+**Threat Intelligence Mapping:**
+- **API**: https://attack.mitre.org/docs/using_api/
+- **Technique Mapping**: File behaviors → ATT&CK tactics/techniques
+- **Common Mappings**:
+  - File deletion → `T1070.004` (Indicator Removal)
+  - Obfuscation → `T1027` (Obfuscated Files or Information)
+  - Double extension → `T1036.007` (Masquerading: Double File Extension)
+  - Hidden files → `T1564.001` (Hide Artifacts: Hidden Files and Directories)
+  - Process injection → `T1055` (Process Injection)
+  - Persistence → `T1547` (Boot or Logon Autostart Execution)
+
+**Proactive Analysis:**
+- Sub-agent queries ATT&CK API for latest techniques
+- Re-analyzes recent files when new vulnerabilities discovered
+- Updates LTM with new threat patterns
+- Notifies user of emerging threats
 
 ### Implementation Components
 
 **Backend (Rust):**
 - `sandbox_manager/src/lib.rs` — Core isolation logic
+- `sandbox_agent/src/lib.rs` — Sub-agent implementation with playbook execution
 - `phoenix-web/src/sandbox_routes.rs` — API endpoints
 - `phoenix-web/src/virustotal.rs` — VirusTotal client
+- `phoenix-web/src/mitre_attck.rs` — MITRE ATT&CK API client
 - PST parsing via `pst` crate
+- Playbook storage: `./playbooks/sandbox.yaml`
 
 **Frontend (TypeScript/React):**
 - Upload dialog checkbox (sandbox mode toggle)
-- Chat command parser (`sandbox:` prefix)
-- Results display component
+- Chat command parser (`sandbox:` prefix, `sandbox spawn`)
+- Results display component with MITRE technique links
+- Optional: Agent status in AgentsPanel (if exists)
 
 **API Endpoints:**
+- `POST /api/sandbox/spawn` — Spawn SandboxAgent sub-agent
 - `POST /api/sandbox/upload` — Upload file to sandbox
-- `POST /api/sandbox/analyze` — Full analysis (VirusTotal + parsing)
+- `POST /api/sandbox/analyze` — Full analysis (VirusTotal + MITRE + PST)
 - `POST /api/sandbox/scan` — VirusTotal scan only
 - `GET /api/sandbox/list` — List sandbox contents
 - `DELETE /api/sandbox/clear` — Delete all sandbox files
+- `GET /api/sandbox/agent/status` — Get SandboxAgent status
 
 ### Testing
 
-**Security Validation:**
+**Sub-Agent & Security Validation:**
 ```bash
-# Test 1: Normal upload (should go to skills/)
+# Test 1: Spawn SandboxAgent
+sandbox spawn
+# Expected: Agent spawned, playbook loaded, STM/LTM initialized
+
+# Test 2: Normal upload (should go to skills/)
 # Drag file → uncheck sandbox → upload
 
-# Test 2: Sandbox upload (should go to ./data/sandbox/)
+# Test 3: Sandbox upload (should go to ./data/sandbox/)
 # Drag file → check sandbox → upload
 
-# Test 3: VirusTotal scan
+# Test 4: VirusTotal scan
 sandbox scan test.pdf
+# Expected: VirusTotal report with detection ratio
 
-# Test 4: PST analysis
+# Test 5: Full analysis with MITRE ATT&CK
+sandbox analyze suspicious.exe
+# Expected: VirusTotal + MITRE techniques + threat level
+
+# Test 6: PST analysis
 sandbox analyze emails.pst
+# Expected: Email summary + phishing indicators + MITRE mapping
 
-# Test 5: Path escape attempt (should reject)
+# Test 7: Path escape attempt (should reject)
 # Try uploading file with "../" in name
+# Expected: "Path escape attempt detected"
 
-# Test 6: Symlink (should reject)
+# Test 8: Symlink (should reject)
 # Try uploading symlink
+# Expected: "Symlinks not allowed in sandbox"
 
-# Test 7: Oversized file (should reject)
+# Test 9: Oversized file (should reject)
 # Try uploading file > SANDBOX_MAX_FILE_SIZE_MB
+# Expected: Size limit error
 
-# Test 8: List contents
+# Test 10: Self-improvement trigger
+# After 10 analyses, check logs for evolution loop trigger
+# Expected: Playbook/LTM updated, accuracy reflection logged
+
+# Test 11: List contents
 sandbox list
 
-# Test 9: Cleanup
+# Test 12: Cleanup
 sandbox clear
 ```
 
@@ -585,26 +774,83 @@ Logs stored in: `./data/sandbox/audit.log`
 - Log all operations for forensics
 - Test path escape attempts regularly
 
+### Self-Improvement & Evolution
+
+**Autonomous Learning:**
+- **Reflection**: After each analysis, sub-agent evaluates accuracy (false positives, missed threats)
+- **Memory Updates**: Learned vulnerability patterns stored in LTM/EPM
+- **Playbook Evolution**: Updates analysis steps based on performance
+- **Proactive Re-analysis**: Monitors MITRE ATT&CK for new techniques, re-scans recent files
+- **Evolution Trigger**: After 10 analyses, runs [`AutonomousEvolutionLoop`](autonomous_evolution_loop/src/lib.rs)
+
+**Evolution Cycle:**
+```mermaid
+graph LR
+    A[Analysis Complete] --> B[Reflect on Accuracy]
+    B --> C{Accuracy < 0.8?}
+    C -->|Yes| D[Update LTM Pattern]
+    C -->|No| E[Continue]
+    D --> F[Update Playbook]
+    F --> G{10 Analyses?}
+    E --> G
+    G -->|Yes| H[Trigger Evolution Loop]
+    G -->|No| I[Next Analysis]
+    H --> J[Refine Techniques]
+    J --> I
+```
+
 ### Limitations
 
 **Current Scope:**
 - Sandbox is filesystem-based (not containerized)
-- No network isolation (files can't make requests, but VirusTotal API is allowed)
+- No network isolation (files can't make requests, but VirusTotal/MITRE APIs allowed)
 - No process isolation (files cannot execute)
 - Windows Defender/AV may quarantine files before analysis
+- Sub-agent evolution limited to playbook/memory updates (no code self-modification)
 
 **Future Enhancements:**
 - Docker/container-based isolation
 - Network traffic monitoring
-- Advanced heuristic analysis
-- Integration with additional malware scanners
-- Automated threat intelligence feeds
+- Advanced heuristic analysis (behavioral sandboxing)
+- Integration with additional malware scanners (Hybrid Analysis, Jotti)
+- Automated threat intelligence feeds (STIX/TAXII)
+- Multi-agent collaboration (SandboxAgent + ThreatIntelAgent)
+- Voice notifications for critical threats
+
+### Configuration
+
+Add to `.env`:
+```env
+# Sandbox Sub-Agent Configuration
+SANDBOX_ENABLED=true
+SANDBOX_PATH=./data/sandbox
+SANDBOX_MAX_FILE_SIZE_MB=50
+SANDBOX_MAX_TOTAL_SIZE_MB=500
+SANDBOX_CLEANUP_DAYS=7
+SANDBOX_ALLOW_EXECUTION=false
+
+# VirusTotal Integration
+VIRUSTOTAL_API_KEY=your_api_key_here
+VIRUSTOTAL_ENABLED=true
+
+# MITRE ATT&CK Integration
+MITRE_ATTCK_ENABLED=true
+MITRE_ATTCK_API_URL=https://attack.mitre.org/api/v1
+
+# Sub-Agent Evolution
+SANDBOX_AGENT_EVOLUTION_ENABLED=true
+SANDBOX_AGENT_EVOLUTION_THRESHOLD=10  # Trigger after N analyses
+SANDBOX_AGENT_ACCURACY_THRESHOLD=0.8  # Update LTM if accuracy < threshold
+```
 
 ### References
 
 - [`ecosystem_manager/src/lib.rs`](ecosystem_manager/src/lib.rs) — Base isolation patterns
 - [`system_access/src/lib.rs`](system_access/src/lib.rs) — Security gate model
+- [`autonomous_evolution_loop/src/lib.rs`](autonomous_evolution_loop/src/lib.rs) — Self-improvement engine
+- [`agent_spawner/src/lib.rs`](agent_spawner/src/lib.rs) — Sub-agent spawning
 - [VirusTotal API Documentation](https://developers.virustotal.com/reference/overview)
+- [MITRE ATT&CK API Documentation](https://attack.mitre.org/docs/using_api/)
 - [PST File Format Specification](https://docs.microsoft.com/en-us/openspecs/office_file_formats/ms-pst/)
 
 ---

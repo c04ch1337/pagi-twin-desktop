@@ -23,6 +23,14 @@ export interface PhoenixResponse {
   [key: string]: any;
 }
 
+// WebGuard response types for rich report handling
+export interface WebGuardCommandResult {
+  message: string;
+  isWebGuardReport: boolean;
+  reportType?: 'passive' | 'xss' | 'sqli';
+  report?: any;
+}
+
 /**
  * Send a chat message to Phoenix via /api/speak
  */
@@ -98,7 +106,8 @@ export const apiCommand = async (command: string, projectContext?: string): Prom
       lower.startsWith('execute ') ||
       lower.startsWith('skills ') ||
       lower.startsWith('google ') ||
-      lower.startsWith('ecosystem ');
+      lower.startsWith('ecosystem ') ||
+      lower.startsWith('webguard ');
 
     const fullCommand = projectContext && !isFastPath
       ? `[context=${projectContext}] ${trimmed}`
@@ -148,6 +157,71 @@ export const apiCommand = async (command: string, projectContext?: string): Prom
 
     // For command responses, format the entire response
     return JSON.stringify(parsed, null, 2);
+  } catch (error) {
+    if (error instanceof Error) {
+      throw new Error(`Phoenix backend connection failed: ${error.message}`);
+    }
+    throw new Error('Phoenix backend connection failed: Unknown error');
+  }
+};
+
+/**
+ * Send a WebGuard command and return both message and report data
+ */
+export const apiWebGuardCommand = async (command: string): Promise<WebGuardCommandResult> => {
+  try {
+    const request: CommandRequest = {
+      command: command,
+    };
+
+    const response = await fetch(`${PHOENIX_API_BASE}/api/command`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(request),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Phoenix API error (${response.status}): ${errorText}`);
+    }
+
+    const text = await response.text();
+    let parsed: PhoenixResponse;
+    
+    try {
+      parsed = JSON.parse(text);
+    } catch {
+      return { message: text, isWebGuardReport: false };
+    }
+
+    if (parsed.type === 'error') {
+      throw new Error(parsed.message || 'Unknown error from Phoenix');
+    }
+
+    // Check if this is a WebGuard response
+    const isWebGuard = parsed.type?.startsWith('webguard.');
+    
+    if (isWebGuard && parsed.report) {
+      let reportType: 'passive' | 'xss' | 'sqli' = 'passive';
+      if (parsed.type.includes('sqli')) {
+        reportType = 'sqli';
+      } else if (parsed.type.includes('xss')) {
+        reportType = 'xss';
+      }
+      return {
+        message: parsed.message || JSON.stringify(parsed, null, 2),
+        isWebGuardReport: true,
+        reportType,
+        report: parsed.report
+      };
+    }
+
+    return {
+      message: parsed.message || JSON.stringify(parsed, null, 2),
+      isWebGuardReport: false
+    };
   } catch (error) {
     if (error instanceof Error) {
       throw new Error(`Phoenix backend connection failed: ${error.message}`);

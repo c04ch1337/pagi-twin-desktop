@@ -139,6 +139,43 @@ pub enum AgentTier {
     Enterprise, // Private repo, enterprise tier
 }
 
+/// Task types that ORCHs can specialize in (mirrors internal_bus::TaskType)
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
+pub enum OrchTaskType {
+    SecurityAnalysis,
+    VulnerabilityScanning,
+    CodeAnalysis,
+    DataProcessing,
+    NetworkMonitoring,
+    FileSystemOperation,
+    WebScraping,
+    EmailProcessing,
+    ScheduledTask,
+    GeneralComputation,
+    Custom(String),
+}
+
+/// ORCH capabilities for swarm auction participation
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct OrchSwarmCapabilities {
+    /// Task types this ORCH specializes in
+    #[serde(default)]
+    pub specializations: Vec<OrchTaskType>,
+    /// Maximum concurrent tasks this ORCH can handle
+    #[serde(default = "default_max_concurrent")]
+    pub max_concurrent_tasks: usize,
+    /// Whether this ORCH participates in task auctions
+    #[serde(default = "default_auction_enabled")]
+    pub auction_enabled: bool,
+    /// Base confidence score for this ORCH (0.0 - 1.0)
+    #[serde(default = "default_base_confidence")]
+    pub base_confidence: f64,
+}
+
+fn default_max_concurrent() -> usize { 5 }
+fn default_auction_enabled() -> bool { true }
+fn default_base_confidence() -> f64 { 0.7 }
+
 #[derive(Debug, Clone)]
 pub struct SpawnedAgent {
     pub id: Uuid,
@@ -146,6 +183,8 @@ pub struct SpawnedAgent {
     pub repo_url: String,
     pub tier: AgentTier,
     pub github_repo: String,
+    /// Swarm capabilities for auction participation
+    pub swarm_capabilities: Option<OrchSwarmCapabilities>,
 }
 
 /// Optional template-level overrides for a spawned agent.
@@ -160,6 +199,15 @@ pub struct AgentTemplateOverrides {
     /// Stored as a string so spawned agents are not forced to depend on Phoenix's internal crates.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub zodiac_sign: Option<String>,
+
+    /// Evolution configuration for the agent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub evolution: Option<sub_agent_evolution::AgentInheritance>,
+
+    /// Swarm capabilities for hidden auction participation.
+    /// When set, the spawned ORCH can participate in Sola's task auctions.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub swarm_capabilities: Option<OrchSwarmCapabilities>,
 }
 
 pub struct AgentSpawner {
@@ -223,6 +271,7 @@ impl AgentSpawner {
             repo_url: repo_url.clone(),
             tier,
             github_repo: format!("{}/{}", self.github_username, name),
+            swarm_capabilities: template_overrides.swarm_capabilities.clone(),
         })
     }
 

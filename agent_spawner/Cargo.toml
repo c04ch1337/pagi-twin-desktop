@@ -15,3 +15,4 @@ tempfile = "3.10"
 llm_orchestrator = { path = "../llm_orchestrator" }
 evolution_pipeline = { path = "../evolution_pipeline" }
 testing_framework = { path = "../testing_framework" }
+sub_agent_evolution = { path = "../sub_agent_evolution" }

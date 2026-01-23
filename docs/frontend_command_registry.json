@@ -205,6 +205,69 @@
       "source_ref": "system_access/src/lib.rs:802",
       "returns": "json",
       "description": "List installed browser extensions"
+    },
+    {
+      "id": "brain.report.help",
+      "input": "report help",
+      "handler": "handle_reporting_command",
+      "source": "phoenix-web/src/reporting_handler.rs",
+      "source_ref": "phoenix-web/src/reporting_handler.rs:18",
+      "returns": "text",
+      "description": "Show reporting agent help"
+    },
+    {
+      "id": "brain.report.list",
+      "input": "report list",
+      "handler": "ReportingAgent.list_reports",
+      "source": "reporting_agent/src/lib.rs",
+      "source_ref": "reporting_agent/src/lib.rs:329",
+      "returns": "json",
+      "description": "List all stored vulnerability reports"
+    },
+    {
+      "id": "brain.report.get",
+      "input": "report get <report_id>",
+      "handler": "ReportingAgent.get_report",
+      "source": "reporting_agent/src/lib.rs",
+      "source_ref": "reporting_agent/src/lib.rs:322",
+      "returns": "json",
+      "description": "Get specific report by ID"
+    },
+    {
+      "id": "brain.report.last",
+      "input": "report last scan",
+      "handler": "ReportingAgent.generate_report",
+      "source": "reporting_agent/src/lib.rs",
+      "source_ref": "reporting_agent/src/lib.rs:267",
+      "returns": "json",
+      "description": "Generate report for last WebGuard/network scan"
+    },
+    {
+      "id": "brain.report.vuln",
+      "input": "report vuln <scan_id>",
+      "handler": "ReportingAgent.generate_report",
+      "source": "reporting_agent/src/lib.rs",
+      "source_ref": "reporting_agent/src/lib.rs:267",
+      "returns": "json",
+      "description": "Generate report for specific vulnerability scan"
+    },
+    {
+      "id": "brain.report.file",
+      "input": "report file <filename>",
+      "handler": "ReportingAgent.generate_report",
+      "source": "reporting_agent/src/lib.rs",
+      "source_ref": "reporting_agent/src/lib.rs:267",
+      "returns": "json",
+      "description": "Generate report for file submission"
+    },
+    {
+      "id": "brain.report.url",
+      "input": "report url <url>",
+      "handler": "ReportingAgent.generate_report",
+      "source": "reporting_agent/src/lib.rs",
+      "source_ref": "reporting_agent/src/lib.rs:267",
+      "returns": "json",
+      "description": "Generate report for URL submission"
     }
   ]
 }

@@ -6,6 +6,18 @@ export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, '.', '');
     const phoenixApiUrl = env.VITE_PHOENIX_API_URL || 'http://localhost:8888';
     
+    // Derive WebSocket URL from API URL if not explicitly set
+    let phoenixWsUrl = env.VITE_PHOENIX_WS_URL;
+    if (!phoenixWsUrl) {
+      try {
+        const url = new URL(phoenixApiUrl);
+        const wsProtocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
+        phoenixWsUrl = `${wsProtocol}//${url.host}/ws`;
+      } catch {
+        phoenixWsUrl = 'ws://localhost:8888/ws';
+      }
+    }
+    
     return {
       server: {
         port: 3000,
@@ -27,6 +39,7 @@ export default defineConfig(({ mode }) => {
       plugins: [react()],
       define: {
         'process.env.VITE_PHOENIX_API_URL': JSON.stringify(phoenixApiUrl),
+        'import.meta.env.VITE_PHOENIX_WS_URL': JSON.stringify(phoenixWsUrl),
       },
       resolve: {
         alias: {

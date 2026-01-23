@@ -4,12 +4,14 @@ import Sidebar from './components/Sidebar';
 import WorkflowBlock from './components/WorkflowBlock';
 import SettingsPanel from './components/SettingsPanel';
 import SchedulerView from './components/SchedulerView';
-import { apiSpeak, apiCommand } from './services/phoenixService';
+import { apiSpeak, apiCommand, apiWebGuardCommand } from './services/phoenixService';
 import { WebSocketService, sendSpeak, sendCommand, sendSystem } from './services/websocketService';
 import { MemoryService } from './services/memoryService';
 import { MemoryBrowser } from './components/MemoryBrowser';
 import DreamsPanel from './components/DreamsPanel';
 import OnboardingMessage from './components/OnboardingMessage';
+import WebGuardReportPanel, { WebGuardReportData } from './components/WebGuardReportPanel';
+import ReportsPanel, { VulnerabilityReport } from './components/ReportsPanel';
 import { sendNotification } from './services/notificationService';
 import VoiceService from './services/voiceService';
 import analyticsService from './services/analyticsService';
@@ -228,6 +230,18 @@ const App: React.FC = () => {
   const [showDreamsPanel, setShowDreamsPanel] = useState(false);
   const [dreamRecords, setDreamRecords] = useState<any[]>([]);
 
+  // WebGuard panel state (hidden by default, toggle via "show webguard")
+  const [showWebGuardPanel, setShowWebGuardPanel] = useState(false);
+  const [webGuardReports, setWebGuardReports] = useState<WebGuardReportData[]>([]);
+
+  // Reports panel state (hidden by default, toggle via "show reports")
+  const [showReportsPanel, setShowReportsPanel] = useState(false);
+  const [vulnerabilityReports, setVulnerabilityReports] = useState<VulnerabilityReport[]>([]);
+
+  // Hidden Swarm Mode state (power-user feature - reveals ORCH activity)
+  const [swarmModeVisible, setSwarmModeVisible] = useState(false);
+  const [swarmStatus, setSwarmStatus] = useState<any>(null);
+
   type ChatCommandResult =
     | {
       kind: 'handled';
@@ -249,6 +263,26 @@ const App: React.FC = () => {
     if (lower === 'hide browser') {
       setShowBrowserPanel(false);
       return { kind: 'handled', localAssistantMessage: 'Browser panel hidden.' };
+    }
+
+    // WebGuard Panel toggles
+    if (lower === 'show webguard' || lower === 'webguard panel' || lower === 'open webguard') {
+      setShowWebGuardPanel(true);
+      return { kind: 'handled', localAssistantMessage: '🛡️ WebGuard panel opened. View your scan reports here.' };
+    }
+    if (lower === 'hide webguard' || lower === 'close webguard') {
+      setShowWebGuardPanel(false);
+      return { kind: 'handled', localAssistantMessage: 'WebGuard panel hidden.' };
+    }
+
+    // Reports panel commands
+    if (lower === 'show reports' || lower === 'reports panel' || lower === 'open reports') {
+      setShowReportsPanel(true);
+      return { kind: 'handled', localAssistantMessage: '📊 Reports panel opened. View your vulnerability reports here.' };
+    }
+    if (lower === 'hide reports' || lower === 'close reports') {
+      setShowReportsPanel(false);
+      return { kind: 'handled', localAssistantMessage: 'Reports panel hidden.' };
     }
 
     // Help command system
@@ -409,8 +443,10 @@ Type \`help <topic>\` for comprehensive guides:
 - \`help memory\` - Memory system & vaults
 - \`help ecosystem\` - Repository imports & integrations
 - \`help agents\` - Agent spawning & management
+- \`help evolution\` - Sub-agent evolution & MITRE ATT&CK
 - \`help proactive\` - Proactive communication
 - \`help theme\` - UI customization
+- \`help webguard\` - Web vulnerability scanning
 
 ---
 
@@ -1501,6 +1537,397 @@ notify test
       return { kind: 'handled', localAssistantMessage: helpTheme };
     }
 
+    if (lower === 'help webguard' || lower === 'help security scan') {
+      const phoenixName = envConfig.PHOENIX_CUSTOM_NAME || envConfig.PHOENIX_NAME || 'Sola';
+      const helpWebguard = `
+# 🛡️ WebGuard - Web Vulnerability Scanner Help
+
+${phoenixName}'s WebGuard is a lightweight web vulnerability scanner for passive security analysis, XSS testing, and SQL injection testing.
+
+---
+
+## Commands
+
+### Passive Scanning
+- \`webguard scan <url>\` - Run passive security scan on URL
+- \`webguard passive <url>\` - Same as scan
+- \`webguard report last\` - Show last passive scan report
+
+### Active XSS Testing (Phase 28b)
+- \`webguard test-xss <url> <param>\` - Test URL parameter for XSS vulnerabilities
+- \`webguard xss-report last\` - Show last XSS test report
+
+### SQL Injection Testing (Phase 28d)
+- \`webguard test-sqli <url> <param>\` - Test URL parameter for SQL injection
+- \`webguard sqli-report last\` - Show last SQLi test report
+
+### Open Redirect Testing (Phase 28f)
+- \`webguard test-redirect <url> <param>\` - Test URL parameter for open redirect vulnerabilities
+- \`webguard redirect-report last\` - Show last open redirect test report
+
+### Command Injection Testing (Phase 28g)
+- \`webguard test-cmdinj <url> <param>\` - Test URL parameter for command injection vulnerabilities
+- \`webguard cmdinj-report last\` - Show last command injection test report
+
+### General
+- \`webguard help\` - Show help
+
+### Panel (Phase 28c)
+- \`show webguard\` - Open WebGuard report panel
+- \`hide webguard\` - Close WebGuard panel
+- Or click the 🛡️ shield icon in the chat footer
+
+---
+
+## Passive Scan Checks
+
+WebGuard performs **read-only** security checks (no payloads sent):
+
+### Security Headers
+- **Content-Security-Policy (CSP)** - XSS protection
+- **Strict-Transport-Security (HSTS)** - HTTPS enforcement
+- **X-Frame-Options** - Clickjacking protection
+- **X-Content-Type-Options** - MIME sniffing prevention
+- **Referrer-Policy** - Referrer leakage control
+- **Permissions-Policy** - Browser feature restrictions
+
+### Server Fingerprinting
+- Server header analysis
+- X-Powered-By detection
+- Technology stack identification
+- Framework/CMS detection
+
+### CORS Analysis
+- Wildcard origin detection
+- Credentials misconfiguration
+- Overly permissive policies
+
+### Sensitive Path Detection
+- \`/.git\` - Source code exposure
+- \`/.env\` - Environment variables
+- \`/admin\` - Admin panels
+- \`/backup\` - Backup files
+- \`/wp-admin\` - WordPress admin
+- And many more...
+
+---
+
+## XSS Testing (Phase 28b)
+
+WebGuard can test URL parameters for Cross-Site Scripting (XSS) vulnerabilities:
+
+### Safe Payloads
+- Uses only safe, non-destructive payloads (alert, confirm, etc.)
+- No stored XSS attacks or persistent modifications
+- Context-aware detection (HTML, attribute, JavaScript)
+
+### Detection Types
+- **Reflected XSS** - Payload reflected in response
+- **DOM-based XSS** - Client-side JavaScript execution
+- **Execution indicators** - Unescaped event handlers
+
+### Example
+\`\`\`
+webguard test-xss https://example.com/search q
+\`\`\`
+This tests the \`q\` parameter on the search page for XSS vulnerabilities.
+
+---
+
+## SQL Injection Testing (Phase 28d)
+
+WebGuard can test URL parameters for SQL injection vulnerabilities:
+
+### Safe Payloads
+- Uses only safe, non-destructive payloads
+- No data modification or extraction
+- Database type fingerprinting
+
+### Detection Types
+- **Error-based SQLi** - Database error messages in response
+- **Boolean-based blind SQLi** - Response differences for true/false conditions
+- **Time-based blind SQLi** - Response time delays (SLEEP, WAITFOR)
+
+### Database Detection
+- MySQL, PostgreSQL, Microsoft SQL Server
+- Oracle, SQLite
+
+### Example
+\`\`\`
+webguard test-sqli https://example.com/product id
+\`\`\`
+This tests the \`id\` parameter for SQL injection vulnerabilities.
+
+---
+
+## Open Redirect Testing (Phase 28f)
+
+WebGuard tests for **open redirect vulnerabilities** using safe payloads:
+
+### Detection Methods
+- Protocol-relative URLs (//evil.com)
+- JavaScript protocols (javascript:alert(1))
+- Data URIs
+- Redirect chain analysis
+
+### Example
+\`\`\`
+webguard test-redirect https://example.com/redirect url
+\`\`\`
+This tests the \`url\` parameter for open redirect vulnerabilities.
+
+---
+
+## Command Injection Testing (Phase 28g)
+
+WebGuard tests for **command injection vulnerabilities** using extremely safe payloads:
+
+### Detection Methods
+- Command separator detection (;, |, &&)
+- Command substitution detection (\`, $())
+- Error message analysis
+- No actual command execution
+
+### Example
+\`\`\`
+webguard test-cmdinj https://example.com/ping ip
+\`\`\`
+This tests the \`ip\` parameter for command injection vulnerabilities.
+
+---
+
+## Severity Levels
+
+| Level | Emoji | Description |
+|-------|-------|-------------|
+| Critical | 🔴 | Immediate action required |
+| High | 🟠 | Significant security risk |
+| Medium | 🟡 | Moderate concern |
+| Low | 🔵 | Minor issue |
+| Info | ⚪ | Informational |
+
+---
+
+## Examples
+
+\`\`\`
+webguard scan https://example.com
+webguard passive https://mysite.com
+webguard report last
+webguard test-xss https://example.com/search q
+webguard xss-report last
+webguard test-sqli https://example.com/product id
+webguard sqli-report last
+webguard test-redirect https://example.com/redirect url
+webguard redirect-report last
+webguard test-cmdinj https://example.com/ping ip
+webguard cmdinj-report last
+\`\`\`
+
+---
+
+## Tips & Best Practices
+
+1. **Start with passive scans** - Safe, read-only analysis
+2. **Review all findings** - Even low severity issues matter
+3. **Check security headers** - Most common issues
+4. **Monitor sensitive paths** - Prevent data exposure
+5. **Regular scans** - Security posture changes over time
+6. **XSS/SQLi testing** - Only test sites you own or have permission to test
+7. **Use prepared statements** - Best defense against SQL injection
+
+---
+
+## Report Storage
+
+Scan reports are stored in ${phoenixName}'s memory (EPM) for later reference.
+Use \`webguard report last\`, \`webguard xss-report last\`, or \`webguard sqli-report last\` to view recent scans.
+
+---
+
+**Related:** \`help security\` for network security scanning
+      `.trim();
+      return { kind: 'handled', localAssistantMessage: helpWebguard };
+    }
+
+    if (lower === 'help evolution' || lower === 'help mitre') {
+      const phoenixName = envConfig.PHOENIX_CUSTOM_NAME || envConfig.PHOENIX_NAME || 'Sola';
+      const helpEvolution = `
+# 🧬 Sub-Agent Evolution Help
+
+${phoenixName}'s spawned agents can self-evolve and improve over time using bounded, safe evolution mechanisms.
+
+---
+
+## Overview
+
+Sub-agents have **self-evolving capabilities** that allow them to:
+- Learn from task feedback
+- Update their playbooks
+- Acquire new skills
+- Integrate MITRE ATT&CK patterns (security agents)
+
+**Safety:** Evolution is bounded — no code self-modification, only config/memory updates.
+
+---
+
+## Commands
+
+### Agent Evolution Status
+\`\`\`
+agent <id> evolution status
+\`\`\`
+
+### View Agent Skills
+\`\`\`
+agent <id> skills
+\`\`\`
+
+### View Agent Playbook
+\`\`\`
+agent <id> playbook
+\`\`\`
+
+### Trigger Evolution Cycle
+\`\`\`
+agent <id> evolve
+\`\`\`
+
+---
+
+## Evolution Mechanisms
+
+### 📚 Playbook Evolution
+Agents update their playbooks based on task feedback.
+
+**Features:**
+- YAML-based configuration
+- Append-only updates (max 100)
+- Telemetry tracking
+- Performance optimization
+
+---
+
+### 🎯 Skills Evolution
+Agents learn and improve skills over time.
+
+**Features:**
+- Load from skills/ folder
+- Track usage count
+- Update love/utility scores
+- Bounded: max 50 skills per agent
+
+---
+
+### 🧠 Memory Inheritance
+Agents inherit memory access from ${phoenixName}.
+
+**Memory Types:**
+- **STM/WM** - Per-session, in-memory cache
+- **LTM/EPM/RFM** - Append-only access to shared memory
+- Agent-prefixed keys for isolation
+
+---
+
+### 🛡️ MITRE ATT&CK Integration (Security Agents)
+Security-focused agents integrate with MITRE ATT&CK framework.
+
+**Features:**
+- Map file behaviors to MITRE techniques
+- Query ATT&CK API for new patterns
+- Generate detection rules
+- Proactive re-analysis on updates
+
+**Supported Techniques:**
+- T1027 (Obfuscated Files)
+- T1055 (Process Injection)
+- T1059 (Command Scripting)
+- T1112 (Registry Modification)
+- T1003 (Credential Dumping)
+- T1071 (Application Layer Protocol)
+- T1485 (Data Destruction)
+- T1547 (Boot/Logon Autostart)
+
+---
+
+## Evolution Bounds (Safety)
+
+| Limit | Value | Purpose |
+|-------|-------|---------|
+| Playbook updates | Max 100 | Prevent unbounded growth |
+| Skills | Max 50 | Resource management |
+| STM entries | Max 100 | Memory efficiency |
+| LTM access | Append-only | Data integrity |
+| Code changes | None | Safety |
+
+---
+
+## Examples
+
+### Spawn Security Agent with Evolution
+\`\`\`
+agent spawn Security agent for malware detection with MITRE evolution
+\`\`\`
+
+### Check Evolution Status
+\`\`\`
+agent 1 evolution status
+\`\`\`
+
+### View Learned Skills
+\`\`\`
+agent 1 skills
+\`\`\`
+
+### Trigger Manual Evolution
+\`\`\`
+agent 1 evolve
+\`\`\`
+
+---
+
+## Configuration
+
+Edit backend \`.env\` file:
+
+\`\`\`bash
+# Sub-agent evolution settings
+SUB_AGENT_EVOLUTION_ENABLED=true
+SUB_AGENT_EVOLUTION_INTERVAL=10
+# Evolve after every N tasks
+
+SUB_AGENT_MAX_SKILLS=50
+SUB_AGENT_MAX_PLAYBOOK_UPDATES=100
+\`\`\`
+
+---
+
+## Tips & Best Practices
+
+1. **Security Agents:** Enable MITRE integration for threat detection
+2. **Feedback:** Provide task feedback to improve evolution
+3. **Monitor:** Check evolution status regularly
+4. **Bounds:** Evolution is safe — bounded and reversible
+5. **Skills:** Agents learn from successful task patterns
+
+---
+
+## How It Works
+
+1. **Task Execution** - Agent completes tasks
+2. **Feedback Collection** - Success/failure recorded
+3. **Evolution Trigger** - After N tasks, evolution cycle runs
+4. **Playbook Update** - Strategies refined based on feedback
+5. **Skill Learning** - New patterns added to skill library
+6. **Memory Update** - Insights stored in STM/LTM
+
+---
+
+**Related:** \`help agents\` for agent spawning basics
+      `.trim();
+      return { kind: 'handled', localAssistantMessage: helpEvolution };
+    }
+
     // Notification test command
     if (lower === 'notify test' || lower === 'test notification') {
       sendNotification('🔔 Test Notification', 'This is a test notification from Sola!')
@@ -1545,6 +1972,91 @@ notify test
     if (lower === 'hide dreams') {
       setShowDreamsPanel(false);
       return { kind: 'handled', localAssistantMessage: 'Dreams panel hidden.' };
+    }
+
+    // Hidden Swarm Mode commands (power-user feature)
+    if (lower === 'swarm mode on' || lower === 'swarm on' || lower === 'show swarm') {
+      setSwarmModeVisible(true);
+      // Call backend to enable swarm mode visibility
+      fetch(`${BACKEND_URL}/api/swarm/mode`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ visible: true })
+      }).then(res => res.json()).then(data => {
+        setSwarmStatus(data);
+      }).catch(err => console.error('Swarm mode toggle failed:', err));
+      const phoenixName = envConfig.PHOENIX_CUSTOM_NAME || envConfig.PHOENIX_NAME || 'Sola';
+      return {
+        kind: 'handled',
+        localAssistantMessage: `🐝 **Swarm Mode Enabled**\n\n${phoenixName} will now show ORCH (sub-agent) activity. You can see which agents are working behind the scenes.\n\n**Commands:**\n- \`swarm status\` - View active ORCHs\n- \`swarm mode off\` - Hide swarm activity\n\n*Note: ${phoenixName} remains your single companion. ORCHs are helpers working in the background.*`
+      };
+    }
+    if (lower === 'swarm mode off' || lower === 'swarm off' || lower === 'hide swarm') {
+      setSwarmModeVisible(false);
+      // Call backend to disable swarm mode visibility
+      fetch(`${BACKEND_URL}/api/swarm/mode`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ visible: false })
+      }).catch(err => console.error('Swarm mode toggle failed:', err));
+      setSwarmStatus(null);
+      const phoenixName = envConfig.PHOENIX_CUSTOM_NAME || envConfig.PHOENIX_NAME || 'Sola';
+      return {
+        kind: 'handled',
+        localAssistantMessage: `🕊️ **Swarm Mode Hidden**\n\n${phoenixName} is now your single visible companion again. ORCHs continue working behind the scenes, but their activity is hidden.`
+      };
+    }
+    if (lower === 'swarm status' || lower === 'swarm') {
+      if (!swarmModeVisible) {
+        return {
+          kind: 'handled',
+          localAssistantMessage: `🔒 **Swarm Mode is Hidden**\n\nUse \`swarm mode on\` to reveal ORCH activity.`
+        };
+      }
+      // Fetch swarm status from backend
+      fetch(`${BACKEND_URL}/api/swarm/status`)
+        .then(res => res.json())
+        .then(data => {
+          setSwarmStatus(data);
+        })
+        .catch(err => console.error('Swarm status fetch failed:', err));
+      
+      if (swarmStatus?.status) {
+        const s = swarmStatus.status;
+        const orchList = s.orchs?.map((o: any) =>
+          `- **${o.name}** (${o.status}) - Load: ${(o.current_load * 100).toFixed(0)}%, Tasks: ${o.active_tasks}`
+        ).join('\n') || 'No ORCHs registered';
+        
+        return {
+          kind: 'handled',
+          localAssistantMessage: `🐝 **Swarm Status**\n\n**Total ORCHs:** ${s.total_orchs}\n**Active ORCHs:** ${s.active_orchs}\n**Pending Auctions:** ${s.pending_auctions}\n**Active Tasks:** ${s.active_tasks}\n\n**Registered ORCHs:**\n${orchList}`
+        };
+      }
+      return {
+        kind: 'handled',
+        localAssistantMessage: `🐝 **Swarm Status**\n\nFetching swarm status... Check again in a moment.`
+      };
+    }
+    if (lower === 'swarm alerts') {
+      // Fetch alerts from backend
+      fetch(`${BACKEND_URL}/api/swarm/alerts`)
+        .then(res => res.json())
+        .then(data => {
+          if (data.count > 0) {
+            const alertList = data.alerts.map((a: any) =>
+              `- **[${a.severity}]** ${a.category}: ${a.description} (from ${a.orch_name})`
+            ).join('\n');
+            // Add as assistant message
+            const alertMsg = `🚨 **Swarm Alerts (${data.count})**\n\n${alertList}`;
+            // This would need to be handled differently to add to messages
+            console.log(alertMsg);
+          }
+        })
+        .catch(err => console.error('Swarm alerts fetch failed:', err));
+      return {
+        kind: 'handled',
+        localAssistantMessage: `🚨 **Checking Swarm Alerts...**\n\nFetching anomaly alerts from ORCHs.`
+      };
     }
 
     // Dream commands (route through backend)
@@ -1643,6 +2155,7 @@ notify test
         `**Connection**: ${wsConnected ? '✅ Connected' : '❌ Disconnected'}\n` +
         `**Voice Output**: ${voiceOutputEnabled ? '✅ Enabled' : '❌ Disabled'}\n` +
         `**Theme**: ${theme === 'dark' ? '🌙 Dark' : '☀️ Light'}\n` +
+        `**Swarm Mode**: ${swarmModeVisible ? '🐝 Visible' : '🕊️ Hidden'}\n` +
         `**Proactive**: Check .env (PROACTIVE_ENABLED)\n` +
         `**Tray/Notifications**: ${typeof window !== 'undefined' && !!(window as any).__TAURI__ ? '✅ Available' : '⚠️ Web mode'}\n` +
         `**Backend**: ${metrics.status}\n` +
@@ -1782,6 +2295,83 @@ notify test
 
       // Unknown browser subcommand; let backend show help/errors.
       return { kind: 'handled', commandToSend: input };
+    }
+
+    // Agent commands (spawn, list, message, evolution)
+    if (lower === 'agents list' || lower === 'list agents') {
+      return { kind: 'handled', commandToSend: 'agents list' };
+    }
+
+    if (lower.startsWith('agent spawn ')) {
+      const prompt = input.substring(12).trim();
+      if (!prompt) {
+        return { kind: 'handled', localAssistantMessage: 'Usage: agent spawn <description/purpose>' };
+      }
+      return { kind: 'handled', commandToSend: `agent spawn ${prompt}` };
+    }
+
+    // Agent evolution commands
+    if (lower.match(/^agent\s+\d+\s+evolution\s+status$/)) {
+      const match = lower.match(/^agent\s+(\d+)\s+evolution\s+status$/);
+      if (match) {
+        const agentId = match[1];
+        return { kind: 'handled', commandToSend: `agent ${agentId} evolution status` };
+      }
+    }
+
+    if (lower.match(/^agent\s+\d+\s+skills$/)) {
+      const match = lower.match(/^agent\s+(\d+)\s+skills$/);
+      if (match) {
+        const agentId = match[1];
+        return { kind: 'handled', commandToSend: `agent ${agentId} skills` };
+      }
+    }
+
+    if (lower.match(/^agent\s+\d+\s+playbook$/)) {
+      const match = lower.match(/^agent\s+(\d+)\s+playbook$/);
+      if (match) {
+        const agentId = match[1];
+        return { kind: 'handled', commandToSend: `agent ${agentId} playbook` };
+      }
+    }
+
+    if (lower.match(/^agent\s+\d+\s+evolve$/)) {
+      const match = lower.match(/^agent\s+(\d+)\s+evolve$/);
+      if (match) {
+        const agentId = match[1];
+        return { kind: 'handled', commandToSend: `agent ${agentId} evolve` };
+      }
+    }
+
+    if (lower.match(/^agent\s+\d+\s+stop$/)) {
+      const match = lower.match(/^agent\s+(\d+)\s+stop$/);
+      if (match) {
+        const agentId = match[1];
+        return { kind: 'handled', commandToSend: `agent ${agentId} stop` };
+      }
+    }
+
+    // Agent message (agent <id> <message>)
+    if (lower.match(/^agent\s+\d+\s+.+$/)) {
+      const match = input.match(/^agent\s+(\d+)\s+(.+)$/i);
+      if (match) {
+        const agentId = match[1];
+        const message = match[2].trim();
+        return { kind: 'handled', commandToSend: `agent ${agentId} ${message}` };
+      }
+    }
+
+    // Ecosystem commands
+    if (lower === 'ecosystem status') {
+      return { kind: 'handled', commandToSend: 'ecosystem status' };
+    }
+
+    if (lower.startsWith('ecosystem import ')) {
+      const url = input.substring(17).trim();
+      if (!url) {
+        return { kind: 'handled', localAssistantMessage: 'Usage: ecosystem import <github-url>' };
+      }
+      return { kind: 'handled', commandToSend: `ecosystem import ${url}` };
     }
 
     return { kind: 'pass_through' };
@@ -2464,7 +3054,8 @@ notify test
       messageLower.startsWith('execute ') ||
       messageLower.startsWith('skills ') ||
       messageLower.startsWith('google ') ||
-      messageLower.startsWith('ecosystem ');
+      messageLower.startsWith('ecosystem ') ||
+      messageLower.startsWith('webguard ');
 
     const isCommand =
       !!commandOverride ||
@@ -2639,9 +3230,49 @@ notify test
     if (!activeChatId) return;
 
     try {
-      const result = isCommand
-        ? await apiCommand(content, activeProject?.name)
-        : await apiSpeak(content, activeProject?.name);
+      // Check if this is a WebGuard command
+      const isWebGuardCommand = content.toLowerCase().startsWith('webguard ');
+      // Check if this is a report command
+      const isReportCommand = content.toLowerCase().startsWith('report ');
+      
+      let result: string;
+      
+      if (isWebGuardCommand) {
+        // Use specialized WebGuard handler to capture report data
+        const webGuardResult = await apiWebGuardCommand(content);
+        result = webGuardResult.message;
+        
+        // Store report for panel display
+        if (webGuardResult.isWebGuardReport && webGuardResult.report) {
+          const reportData: WebGuardReportData = {
+            type: webGuardResult.reportType || 'passive',
+            report: webGuardResult.report,
+            markdown: webGuardResult.message,
+            timestamp: Date.now()
+          };
+          setWebGuardReports(prev => [reportData, ...prev.slice(0, 19)]); // Keep last 20 reports
+        }
+      } else if (isReportCommand) {
+        // Handle report commands
+        const reportResult = await apiCommand(content, activeProject?.name);
+        result = reportResult;
+        
+        // Try to parse report data from response
+        try {
+          const parsed = JSON.parse(reportResult);
+          if (parsed.type === 'report.generated' && parsed.report) {
+            setVulnerabilityReports(prev => [parsed.report, ...prev.slice(0, 19)]); // Keep last 20
+          } else if (parsed.type === 'report.list' && parsed.reports) {
+            // Optionally update full list
+          }
+        } catch (e) {
+          // Not JSON, just display message
+        }
+      } else {
+        result = isCommand
+          ? await apiCommand(content, activeProject?.name)
+          : await apiSpeak(content, activeProject?.name);
+      }
 
       const assistantMessage: Message = {
         id: (Date.now() + 1).toString(),
@@ -3192,6 +3823,22 @@ notify test
                         </button>
 
                         <button
+                          onClick={() => setShowWebGuardPanel(!showWebGuardPanel)}
+                          className={`p-2 rounded-lg transition-all ${showWebGuardPanel ? 'bg-cyan-500/20 text-cyan-400' : 'hover:bg-slate-800 text-slate-500'}`}
+                          title="WebGuard Security Scanner"
+                        >
+                          <span className="material-symbols-outlined text-[20px]">shield</span>
+                        </button>
+
+                        <button
+                          onClick={() => setShowReportsPanel(!showReportsPanel)}
+                          className={`p-2 rounded-lg transition-all ${showReportsPanel ? 'bg-cyan-500/20 text-cyan-400' : 'hover:bg-slate-800 text-slate-500'}`}
+                          title="Vulnerability Reports"
+                        >
+                          <span className="material-symbols-outlined text-[20px]">description</span>
+                        </button>
+
+                        <button
                           onClick={isDictating ? () => stopDictation() : startDictation}
                           className={`p-2 rounded-lg transition-all flex items-center gap-2 px-3 ${isDictating ? 'bg-amber-500 text-white shadow-lg shadow-amber-500/20' : 'hover:bg-slate-800 text-slate-500'}`}
                           title="Voice-to-Text (Dictation)"
@@ -3263,6 +3910,26 @@ notify test
           handleSendMessage();
         }}
         dreams={dreamRecords}
+      />
+
+      <WebGuardReportPanel
+        isOpen={showWebGuardPanel}
+        onClose={() => setShowWebGuardPanel(false)}
+        reports={webGuardReports}
+        onCommand={(cmd) => {
+          setInputValue(cmd);
+          setShowWebGuardPanel(false);
+        }}
+      />
+
+      <ReportsPanel
+        isOpen={showReportsPanel}
+        onClose={() => setShowReportsPanel(false)}
+        reports={vulnerabilityReports}
+        onCommand={(cmd) => {
+          setInputValue(cmd);
+          setShowReportsPanel(false);
+        }}
       />
     </div>
   );

@@ -12,6 +12,7 @@ use actix_web::http::StatusCode;
 use actix_web::{
     middleware, web, App, HttpRequest, HttpResponse, HttpServer, Responder, ResponseError,
 };
+use base64::Engine;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::{
@@ -45,6 +46,25 @@ use wireless_sniffer::{BluetoothSniffer, WiFiAnalyzer};
 
 // Skills System
 use skill_system::SkillSystem;
+
+// Network Security Agent
+use network_security_agent::NetworkSecurityAgent;
+
+// Malware Sandbox Agent
+use malware_sandbox_agent::{MalwareSandboxAgent, MalwareSandboxConfig};
+use sandbox_manager::{SandboxConfig, SandboxManager};
+
+// WebGuard - Web Vulnerability Scanner
+use webguard::{
+    WebGuard, PassiveScanReport, format_report_markdown, format_notification_summary,
+    XssTester, XssTestReport, format_xss_report_markdown, format_xss_notification_summary,
+    SqliTester, SqliTestReport, format_sqli_report_markdown, format_sqli_notification_summary,
+    RedirectTester, RedirectTestReport, format_redirect_report_markdown, format_redirect_notification_summary,
+    CmdInjTester, CmdInjTestReport, format_cmdinj_report_markdown, format_cmdinj_notification_summary,
+};
+
+// Reporting Agent - Professional Vulnerability Reporting
+use reporting_agent::{ReportingAgent, VulnerabilityReport, ReportRequest, ReportType};
 
 // Home Automation
 use home_automation_bridge::AGIIntegration;
@@ -128,9 +148,13 @@ fn load_dotenv_best_effort() -> (Option<PathBuf>, Option<String>) {
 }
 
 mod google;
+mod internal_bus;
 mod proactive;
+mod reporting_handler;
+mod swarm_delegation;
 mod websocket;
 use google::{GoogleInitError, GoogleManager};
+use internal_bus::{create_swarm_system, InternalSwarmBus, SolaSwarmInterface};
 
 #[derive(Debug, Clone)]
 struct BrowserPrefs {
@@ -179,9 +203,34 @@ struct AppState {
     voice_io: Arc<VoiceIO>,
     skill_system: Arc<Mutex<SkillSystem>>,
     browser_prefs: Arc<Mutex<BrowserPrefs>>,
+    // Network Security Agent
+    security_agent: Option<Arc<Mutex<NetworkSecurityAgent>>>,
+    // Malware Sandbox Agent
+    sandbox_manager: Option<Arc<SandboxManager>>,
+    sandbox_agent: Option<Arc<Mutex<MalwareSandboxAgent>>>,
+    // WebGuard - Web Vulnerability Scanner
+    webguard: Option<Arc<WebGuard>>,
+    webguard_last_report: Arc<Mutex<Option<PassiveScanReport>>>,
+    // XSS Tester (Phase 28b)
+    xss_tester: Option<Arc<XssTester>>,
+    xss_last_report: Arc<Mutex<Option<XssTestReport>>>,
+    // SQLi Tester (Phase 28d)
+    sqli_tester: Option<Arc<SqliTester>>,
+    sqli_last_report: Arc<Mutex<Option<SqliTestReport>>>,
+    // Open Redirect Tester (Phase 28f)
+    redirect_tester: Option<Arc<RedirectTester>>,
+    redirect_last_report: Arc<Mutex<Option<RedirectTestReport>>>,
+    // Command Injection Tester (Phase 28g)
+    cmdinj_tester: Option<Arc<CmdInjTester>>,
+    cmdinj_last_report: Arc<Mutex<Option<CmdInjTestReport>>>,
+    // Reporting Agent - Professional Vulnerability Reporting
+    reporting_agent: Option<Arc<Mutex<ReportingAgent>>>,
     // Proactive communication
     proactive_state: Arc<proactive::ProactiveState>,
     proactive_tx: tokio::sync::broadcast::Sender<proactive::ProactiveMessage>,
+    // Hidden Swarm Coordination (Sola remains single visible face)
+    swarm_bus: Arc<InternalSwarmBus>,
+    swarm_interface: Arc<Mutex<SolaSwarmInterface>>,
     version: String,
     dotenv_path: Option<String>,
     dotenv_error: Option<String>,
@@ -2285,6 +2334,1013 @@ async fn handle_code_command(state: &AppState, cmd: &str) -> serde_json::Value {
     }
 }
 
+/// Handle WebGuard commands (Web Vulnerability Scanner)
+/// Commands:
+/// - webguard scan <url> - Run passive security scan
+/// - webguard passive <url> - Same as scan
+/// - webguard test-xss <url> <param> - Test for XSS vulnerabilities
+/// - webguard test-sqli <url> <param> - Test for SQL injection vulnerabilities
+/// - webguard test-redirect <url> <param> - Test for open redirect vulnerabilities
+/// - webguard test-cmdinj <url> <param> - Test for command injection vulnerabilities
+/// - webguard report last - Show last scan report
+/// - webguard xss-report last - Show last XSS test report
+/// - webguard sqli-report last - Show last SQLi test report
+/// - webguard redirect-report last - Show last open redirect test report
+/// - webguard cmdinj-report last - Show last command injection test report
+/// - webguard help - Show help
+async fn handle_webguard_command(state: &AppState, cmd: &str) -> serde_json::Value {
+    let Some(webguard) = &state.webguard else {
+        return json!({
+            "type": "error",
+            "message": "WebGuard scanner not available. Check logs for initialization errors."
+        });
+    };
+
+    let rest = cmd
+        .strip_prefix("webguard")
+        .map(|s| s.trim())
+        .unwrap_or("");
+    let tokens: Vec<&str> = rest.split_whitespace().collect();
+    let sub = tokens.first().map(|s| s.to_lowercase()).unwrap_or_default();
+    let args = tokens.get(1..).unwrap_or(&[]);
+
+    if sub.is_empty() || sub == "help" {
+        return json!({
+            "type": "webguard.help",
+            "message": "🛡️ **WebGuard - Web Vulnerability Scanner**\n\n\
+                Commands:\n\
+                - `webguard scan <url>` - Run passive security scan on URL\n\
+                - `webguard passive <url>` - Same as scan\n\
+                - `webguard test-xss <url> <param>` - Test URL parameter for XSS\n\
+                - `webguard test-sqli <url> <param>` - Test URL parameter for SQL injection\n\
+                - `webguard test-redirect <url> <param>` - Test URL parameter for open redirect\n\
+                - `webguard test-cmdinj <url> <param>` - Test URL parameter for command injection\n\
+                - `webguard report last` - Show last passive scan report\n\
+                - `webguard xss-report last` - Show last XSS test report\n\
+                - `webguard sqli-report last` - Show last SQLi test report\n\
+                - `webguard redirect-report last` - Show last open redirect test report\n\
+                - `webguard cmdinj-report last` - Show last command injection test report\n\
+                - `webguard help` - Show this help\n\n\
+                **Passive Scan Checks:**\n\
+                - Security headers (CSP, HSTS, X-Frame-Options, etc.)\n\
+                - Server fingerprinting\n\
+                - CORS misconfiguration\n\
+                - Exposed sensitive paths (/.git, /.env, /admin, etc.)\n\
+                - Tech stack detection\n\n\
+                **XSS Testing (Phase 28b):**\n\
+                - Safe payload injection (no destructive actions)\n\
+                - Reflected XSS detection\n\
+                - Context-aware analysis\n\
+                - Proof-of-concept generation\n\n\
+                **SQLi Testing (Phase 28d):**\n\
+                - Error-based SQL injection detection\n\
+                - Boolean-based blind SQLi detection\n\
+                - Time-based blind SQLi detection\n\
+                - Database type fingerprinting\n\
+                - Safe payloads only (no data modification)\n\n\
+                **Open Redirect Testing (Phase 28f):**\n\
+                - Safe redirect payload testing\n\
+                - External domain redirect detection\n\
+                - JavaScript protocol detection\n\
+                - Redirect chain analysis\n\n\
+                **Command Injection Testing (Phase 28g):**\n\
+                - Safe command injection detection\n\
+                - Error message analysis\n\
+                - No actual command execution on host"
+        });
+    }
+
+    match sub.as_str() {
+        "scan" | "passive" => {
+            let url = args.first().copied().unwrap_or("");
+            if url.is_empty() {
+                return json!({
+                    "type": "error",
+                    "message": "Usage: webguard scan <url>\nExample: webguard scan https://example.com"
+                });
+            }
+
+            // Validate URL format
+            if !url.starts_with("http://") && !url.starts_with("https://") {
+                return json!({
+                    "type": "error",
+                    "message": format!("Invalid URL: {}. URL must start with http:// or https://", url)
+                });
+            }
+
+            info!("🔍 WebGuard: Starting passive scan of {}", url);
+
+            match webguard.passive_scan(url).await {
+                Ok(report) => {
+                    // Store the report for later reference
+                    {
+                        let mut last_report = state.webguard_last_report.lock().await;
+                        *last_report = Some(report.clone());
+                    }
+
+                    // Store in EPM memory for persistence
+                    if let Err(e) = state.vaults.store_soul(
+                        &format!("webguard:scan:{}", report.id),
+                        &serde_json::to_string(&report).unwrap_or_default(),
+                    ) {
+                        warn!("Failed to store WebGuard report in EPM: {}", e);
+                    }
+
+                    // Format as Markdown for chat display
+                    let markdown_report = format_report_markdown(&report);
+
+                    // Send notification for high/critical findings
+                    if report.summary.critical_count > 0 || report.summary.high_count > 0 {
+                        let notification = format_notification_summary(&report);
+                        info!("🚨 WebGuard: {}", notification);
+                        // Tray notification would be triggered here via proactive system
+                    }
+
+                    json!({
+                        "type": "webguard.scan.result",
+                        "scan_id": report.id,
+                        "target": report.target_url,
+                        "summary": {
+                            "total": report.summary.total_findings,
+                            "critical": report.summary.critical_count,
+                            "high": report.summary.high_count,
+                            "medium": report.summary.medium_count,
+                            "low": report.summary.low_count,
+                            "info": report.summary.info_count
+                        },
+                        "message": markdown_report,
+                        "report": serde_json::to_value(&report).unwrap_or(json!(null))
+                    })
+                }
+                Err(e) => {
+                    json!({
+                        "type": "error",
+                        "message": format!("WebGuard scan failed: {}", e)
+                    })
+                }
+            }
+        }
+        "report" => {
+            let sub_arg = args.first().map(|s| s.to_lowercase()).unwrap_or_default();
+            if sub_arg == "last" || sub_arg.is_empty() {
+                let last_report = state.webguard_last_report.lock().await;
+                if let Some(ref report) = *last_report {
+                    let markdown_report = format_report_markdown(report);
+                    json!({
+                        "type": "webguard.report",
+                        "scan_id": report.id,
+                        "target": report.target_url,
+                        "message": markdown_report,
+                        "report": serde_json::to_value(report).unwrap_or(json!(null))
+                    })
+                } else {
+                    json!({
+                        "type": "error",
+                        "message": "No previous scan report available. Run `webguard scan <url>` first."
+                    })
+                }
+            } else {
+                // Try to load report by ID from EPM
+                let key = format!("webguard:scan:{}", sub_arg);
+                match state.vaults.recall_soul(&key) {
+                    Some(data) => {
+                        if let Ok(report) = serde_json::from_str::<PassiveScanReport>(&data) {
+                            let markdown_report = format_report_markdown(&report);
+                            json!({
+                                "type": "webguard.report",
+                                "scan_id": report.id,
+                                "target": report.target_url,
+                                "message": markdown_report,
+                                "report": serde_json::to_value(&report).unwrap_or(json!(null))
+                            })
+                        } else {
+                            json!({
+                                "type": "error",
+                                "message": format!("Failed to parse stored report: {}", sub_arg)
+                            })
+                        }
+                    }
+                    None => {
+                        json!({
+                            "type": "error",
+                            "message": format!("Report not found: {}. Use `webguard report last` for the most recent scan.", sub_arg)
+                        })
+                    }
+                }
+            }
+        }
+        // Phase 28b: XSS Testing
+        "test-xss" | "xss" | "xss-test" => {
+            let Some(xss_tester) = &state.xss_tester else {
+                return json!({
+                    "type": "error",
+                    "message": "XSS Tester not available. Check logs for initialization errors."
+                });
+            };
+
+            // Parse URL and parameter
+            let url = args.first().copied().unwrap_or("");
+            let param = args.get(1).copied().unwrap_or("");
+
+            if url.is_empty() || param.is_empty() {
+                return json!({
+                    "type": "error",
+                    "message": "Usage: webguard test-xss <url> <param>\nExample: webguard test-xss https://example.com/search q"
+                });
+            }
+
+            // Validate URL format
+            if !url.starts_with("http://") && !url.starts_with("https://") {
+                return json!({
+                    "type": "error",
+                    "message": format!("Invalid URL: {}. URL must start with http:// or https://", url)
+                });
+            }
+
+            info!("🔍 WebGuard XSS: Testing {} (param: {})", url, param);
+
+            match xss_tester.test_xss(url, param).await {
+                Ok(report) => {
+                    // Store the report for later reference
+                    {
+                        let mut last_report = state.xss_last_report.lock().await;
+                        *last_report = Some(report.clone());
+                    }
+
+                    // Store in EPM memory for persistence
+                    if let Err(e) = state.vaults.store_soul(
+                        &format!("webguard:xss:{}", report.id),
+                        &serde_json::to_string(&report).unwrap_or_default(),
+                    ) {
+                        warn!("Failed to store XSS report in EPM: {}", e);
+                    }
+
+                    // Format as Markdown for chat display
+                    let markdown_report = format_xss_report_markdown(&report);
+
+                    // Send notification for vulnerabilities found
+                    if report.summary.vulnerable {
+                        let notification = format_xss_notification_summary(&report);
+                        info!("🚨 WebGuard XSS: {}", notification);
+                        // Tray notification would be triggered here via proactive system
+                    }
+
+                    json!({
+                        "type": "webguard.xss.result",
+                        "scan_id": report.id,
+                        "target": report.target_url,
+                        "parameter": report.parameter,
+                        "summary": {
+                            "vulnerable": report.summary.vulnerable,
+                            "total_findings": report.summary.total_findings,
+                            "critical": report.summary.critical_count,
+                            "high": report.summary.high_count,
+                            "payloads_tested": report.payloads_tested,
+                            "payloads_reflected": report.payloads_reflected,
+                            "payloads_executed": report.payloads_executed
+                        },
+                        "message": markdown_report,
+                        "report": serde_json::to_value(&report).unwrap_or(json!(null))
+                    })
+                }
+                Err(e) => {
+                    json!({
+                        "type": "error",
+                        "message": format!("XSS test failed: {}", e)
+                    })
+                }
+            }
+        }
+        "xss-report" => {
+            let sub_arg = args.first().map(|s| s.to_lowercase()).unwrap_or_default();
+            if sub_arg == "last" || sub_arg.is_empty() {
+                let last_report = state.xss_last_report.lock().await;
+                if let Some(ref report) = *last_report {
+                    let markdown_report = format_xss_report_markdown(report);
+                    json!({
+                        "type": "webguard.xss.report",
+                        "scan_id": report.id,
+                        "target": report.target_url,
+                        "parameter": report.parameter,
+                        "message": markdown_report,
+                        "report": serde_json::to_value(report).unwrap_or(json!(null))
+                    })
+                } else {
+                    json!({
+                        "type": "error",
+                        "message": "No previous XSS test report available. Run `webguard test-xss <url> <param>` first."
+                    })
+                }
+            } else {
+                // Try to load report by ID from EPM
+                let key = format!("webguard:xss:{}", sub_arg);
+                match state.vaults.recall_soul(&key) {
+                    Some(data) => {
+                        if let Ok(report) = serde_json::from_str::<XssTestReport>(&data) {
+                            let markdown_report = format_xss_report_markdown(&report);
+                            json!({
+                                "type": "webguard.xss.report",
+                                "scan_id": report.id,
+                                "target": report.target_url,
+                                "parameter": report.parameter,
+                                "message": markdown_report,
+                                "report": serde_json::to_value(&report).unwrap_or(json!(null))
+                            })
+                        } else {
+                            json!({
+                                "type": "error",
+                                "message": format!("Failed to parse stored XSS report: {}", sub_arg)
+                            })
+                        }
+                    }
+                    None => {
+                        json!({
+                            "type": "error",
+                            "message": format!("XSS report not found: {}. Use `webguard xss-report last` for the most recent test.", sub_arg)
+                        })
+                    }
+                }
+            }
+        }
+        // Phase 28d: SQLi Testing
+        "test-sqli" | "sqli" | "sqli-test" => {
+            let Some(sqli_tester) = &state.sqli_tester else {
+                return json!({
+                    "type": "error",
+                    "message": "SQLi Tester not available. Check logs for initialization errors."
+                });
+            };
+
+            // Parse URL and parameter
+            let url = args.first().copied().unwrap_or("");
+            let param = args.get(1).copied().unwrap_or("");
+
+            if url.is_empty() || param.is_empty() {
+                return json!({
+                    "type": "error",
+                    "message": "Usage: webguard test-sqli <url> <param>\nExample: webguard test-sqli https://example.com/search id"
+                });
+            }
+
+            // Validate URL format
+            if !url.starts_with("http://") && !url.starts_with("https://") {
+                return json!({
+                    "type": "error",
+                    "message": format!("Invalid URL: {}. URL must start with http:// or https://", url)
+                });
+            }
+
+            info!("🔍 WebGuard SQLi: Testing {} (param: {})", url, param);
+
+            match sqli_tester.test_sqli(url, param).await {
+                Ok(report) => {
+                    // Store the report for later reference
+                    {
+                        let mut last_report = state.sqli_last_report.lock().await;
+                        *last_report = Some(report.clone());
+                    }
+
+                    // Store in EPM memory for persistence
+                    if let Err(e) = state.vaults.store_soul(
+                        &format!("webguard:sqli:{}", report.id),
+                        &serde_json::to_string(&report).unwrap_or_default(),
+                    ) {
+                        warn!("Failed to store SQLi report in EPM: {}", e);
+                    }
+
+                    // Format as Markdown for chat display
+                    let markdown_report = format_sqli_report_markdown(&report);
+
+                    // Send notification for vulnerabilities found
+                    if report.summary.vulnerable {
+                        let notification = format_sqli_notification_summary(&report);
+                        info!("🚨 WebGuard SQLi: {}", notification);
+                        // Tray notification would be triggered here via proactive system
+                    }
+
+                    json!({
+                        "type": "webguard.sqli.result",
+                        "scan_id": report.id,
+                        "target": report.target_url,
+                        "parameter": report.parameter,
+                        "summary": {
+                            "vulnerable": report.summary.vulnerable,
+                            "total_findings": report.summary.total_findings,
+                            "critical": report.summary.critical_count,
+                            "high": report.summary.high_count,
+                            "medium": report.summary.medium_count,
+                            "payloads_tested": report.payloads_tested,
+                            "errors_detected": report.errors_detected,
+                            "time_delays_detected": report.time_delays_detected,
+                            "boolean_differences": report.boolean_differences,
+                            "detected_database": report.summary.detected_database
+                        },
+                        "message": markdown_report,
+                        "report": serde_json::to_value(&report).unwrap_or(json!(null))
+                    })
+                }
+                Err(e) => {
+                    json!({
+                        "type": "error",
+                        "message": format!("SQLi test failed: {}", e)
+                    })
+                }
+            }
+        }
+        "sqli-report" => {
+            let sub_arg = args.first().map(|s| s.to_lowercase()).unwrap_or_default();
+            if sub_arg == "last" || sub_arg.is_empty() {
+                let last_report = state.sqli_last_report.lock().await;
+                if let Some(ref report) = *last_report {
+                    let markdown_report = format_sqli_report_markdown(report);
+                    json!({
+                        "type": "webguard.sqli.report",
+                        "scan_id": report.id,
+                        "target": report.target_url,
+                        "parameter": report.parameter,
+                        "message": markdown_report,
+                        "report": serde_json::to_value(report).unwrap_or(json!(null))
+                    })
+                } else {
+                    json!({
+                        "type": "error",
+                        "message": "No previous SQLi test report available. Run `webguard test-sqli <url> <param>` first."
+                    })
+                }
+            } else {
+                // Try to load report by ID from EPM
+                let key = format!("webguard:sqli:{}", sub_arg);
+                match state.vaults.recall_soul(&key) {
+                    Some(data) => {
+                        if let Ok(report) = serde_json::from_str::<SqliTestReport>(&data) {
+                            let markdown_report = format_sqli_report_markdown(&report);
+                            json!({
+                                "type": "webguard.sqli.report",
+                                "scan_id": report.id,
+                                "target": report.target_url,
+                                "parameter": report.parameter,
+                                "message": markdown_report,
+                                "report": serde_json::to_value(&report).unwrap_or(json!(null))
+                            })
+                        } else {
+                            json!({
+                                "type": "error",
+                                "message": format!("Failed to parse stored SQLi report: {}", sub_arg)
+                            })
+                        }
+                    }
+                    None => {
+                        json!({
+                            "type": "error",
+                            "message": format!("SQLi report not found: {}. Use `webguard sqli-report last` for the most recent test.", sub_arg)
+                        })
+                    }
+                }
+            }
+        }
+        "test-redirect" => {
+            let Some(redirect_tester) = &state.redirect_tester else {
+                return json!({
+                    "type": "error",
+                    "message": "Open Redirect tester not available. Check logs for initialization errors."
+                });
+            };
+
+            let url = args.first().copied().unwrap_or("");
+            let param = args.get(1).copied().unwrap_or("");
+            
+            if url.is_empty() || param.is_empty() {
+                return json!({
+                    "type": "error",
+                    "message": "Usage: webguard test-redirect <url> <param>\nExample: webguard test-redirect https://example.com/redirect url"
+                });
+            }
+
+            // Validate URL format
+            if !url.starts_with("http://") && !url.starts_with("https://") {
+                return json!({
+                    "type": "error",
+                    "message": format!("Invalid URL: {}. URL must start with http:// or https://", url)
+                });
+            }
+
+            info!("🔍 WebGuard Open Redirect: Testing {} (param: {})", url, param);
+
+            match redirect_tester.test_redirect(url, param).await {
+                Ok(report) => {
+                    // Store the report for later reference
+                    {
+                        let mut last_report = state.redirect_last_report.lock().await;
+                        *last_report = Some(report.clone());
+                    }
+
+                    // Store in EPM memory for persistence
+                    if let Err(e) = state.vaults.store_soul(
+                        &format!("webguard:redirect:{}", report.id),
+                        &serde_json::to_string(&report).unwrap_or_default(),
+                    ) {
+                        warn!("Failed to store Open Redirect report in EPM: {}", e);
+                    }
+
+                    // Format as Markdown for chat display
+                    let markdown_report = format_redirect_report_markdown(&report);
+
+                    // Send notification for vulnerabilities found
+                    if report.summary.vulnerable {
+                        let notification = format_redirect_notification_summary(&report);
+                        info!("🚨 WebGuard Open Redirect: {}", notification);
+                        // Tray notification would be triggered here via proactive system
+                    }
+
+                    json!({
+                        "type": "webguard.redirect.result",
+                        "scan_id": report.id,
+                        "target": report.target_url,
+                        "parameter": report.parameter,
+                        "summary": {
+                            "vulnerable": report.summary.vulnerable,
+                            "total_findings": report.summary.total_findings,
+                            "high": report.summary.high_count,
+                            "medium": report.summary.medium_count,
+                            "payloads_tested": report.payloads_tested,
+                            "redirects_detected": report.redirects_detected,
+                            "external_redirects": report.external_redirects,
+                            "javascript_redirects": report.javascript_redirects
+                        },
+                        "message": markdown_report,
+                        "report": serde_json::to_value(&report).unwrap_or(json!(null))
+                    })
+                }
+                Err(e) => {
+                    json!({
+                        "type": "error",
+                        "message": format!("Open Redirect test failed: {}", e)
+                    })
+                }
+            }
+        }
+        "redirect-report" => {
+            let sub_arg = args.first().map(|s| s.to_lowercase()).unwrap_or_default();
+            if sub_arg == "last" || sub_arg.is_empty() {
+                let last_report = state.redirect_last_report.lock().await;
+                if let Some(ref report) = *last_report {
+                    let markdown_report = format_redirect_report_markdown(report);
+                    json!({
+                        "type": "webguard.redirect.report",
+                        "scan_id": report.id,
+                        "target": report.target_url,
+                        "parameter": report.parameter,
+                        "message": markdown_report,
+                        "report": serde_json::to_value(report).unwrap_or(json!(null))
+                    })
+                } else {
+                    json!({
+                        "type": "error",
+                        "message": "No previous Open Redirect test report available. Run `webguard test-redirect <url> <param>` first."
+                    })
+                }
+            } else {
+                // Try to load report by ID from EPM
+                let key = format!("webguard:redirect:{}", sub_arg);
+                match state.vaults.recall_soul(&key) {
+                    Some(data) => {
+                        if let Ok(report) = serde_json::from_str::<RedirectTestReport>(&data) {
+                            let markdown_report = format_redirect_report_markdown(&report);
+                            json!({
+                                "type": "webguard.redirect.report",
+                                "scan_id": report.id,
+                                "target": report.target_url,
+                                "parameter": report.parameter,
+                                "message": markdown_report,
+                                "report": serde_json::to_value(&report).unwrap_or(json!(null))
+                            })
+                        } else {
+                            json!({
+                                "type": "error",
+                                "message": format!("Failed to parse stored Open Redirect report: {}", sub_arg)
+                            })
+                        }
+                    }
+                    None => {
+                        json!({
+                            "type": "error",
+                            "message": format!("Open Redirect report not found: {}. Use `webguard redirect-report last` for the most recent test.", sub_arg)
+                        })
+                    }
+                }
+            }
+        }
+        "test-cmdinj" => {
+            let Some(cmdinj_tester) = &state.cmdinj_tester else {
+                return json!({
+                    "type": "error",
+                    "message": "Command Injection tester not available. Check logs for initialization errors."
+                });
+            };
+
+            let url = args.first().copied().unwrap_or("");
+            let param = args.get(1).copied().unwrap_or("");
+            
+            if url.is_empty() || param.is_empty() {
+                return json!({
+                    "type": "error",
+                    "message": "Usage: webguard test-cmdinj <url> <param>\nExample: webguard test-cmdinj https://example.com/ping ip"
+                });
+            }
+
+            // Validate URL format
+            if !url.starts_with("http://") && !url.starts_with("https://") {
+                return json!({
+                    "type": "error",
+                    "message": format!("Invalid URL: {}. URL must start with http:// or https://", url)
+                });
+            }
+
+            info!("🔍 WebGuard Command Injection: Testing {} (param: {})", url, param);
+
+            match cmdinj_tester.test_cmdinj(url, param).await {
+                Ok(report) => {
+                    // Store the report for later reference
+                    {
+                        let mut last_report = state.cmdinj_last_report.lock().await;
+                        *last_report = Some(report.clone());
+                    }
+
+                    // Store in EPM memory for persistence
+                    if let Err(e) = state.vaults.store_soul(
+                        &format!("webguard:cmdinj:{}", report.id),
+                        &serde_json::to_string(&report).unwrap_or_default(),
+                    ) {
+                        warn!("Failed to store Command Injection report in EPM: {}", e);
+                    }
+
+                    // Format as Markdown for chat display
+                    let markdown_report = format_cmdinj_report_markdown(&report);
+
+                    // Send notification for vulnerabilities found
+                    if report.summary.vulnerable {
+                        let notification = format_cmdinj_notification_summary(&report);
+                        info!("🚨 WebGuard Command Injection: {}", notification);
+                        // Tray notification would be triggered here via proactive system
+                    }
+
+                    json!({
+                        "type": "webguard.cmdinj.result",
+                        "scan_id": report.id,
+                        "target": report.target_url,
+                        "parameter": report.parameter,
+                        "summary": {
+                            "vulnerable": report.summary.vulnerable,
+                            "total_findings": report.summary.total_findings,
+                            "critical": report.summary.critical_count,
+                            "high": report.summary.high_count,
+                            "payloads_tested": report.payloads_tested,
+                            "injections_detected": report.injections_detected
+                        },
+                        "message": markdown_report,
+                        "report": serde_json::to_value(&report).unwrap_or(json!(null))
+                    })
+                }
+                Err(e) => {
+                    json!({
+                        "type": "error",
+                        "message": format!("Command Injection test failed: {}", e)
+                    })
+                }
+            }
+        }
+        "cmdinj-report" => {
+            let sub_arg = args.first().map(|s| s.to_lowercase()).unwrap_or_default();
+            if sub_arg == "last" || sub_arg.is_empty() {
+                let last_report = state.cmdinj_last_report.lock().await;
+                if let Some(ref report) = *last_report {
+                    let markdown_report = format_cmdinj_report_markdown(report);
+                    json!({
+                        "type": "webguard.cmdinj.report",
+                        "scan_id": report.id,
+                        "target": report.target_url,
+                        "parameter": report.parameter,
+                        "message": markdown_report,
+                        "report": serde_json::to_value(report).unwrap_or(json!(null))
+                    })
+                } else {
+                    json!({
+                        "type": "error",
+                        "message": "No previous Command Injection test report available. Run `webguard test-cmdinj <url> <param>` first."
+                    })
+                }
+            } else {
+                // Try to load report by ID from EPM
+                let key = format!("webguard:cmdinj:{}", sub_arg);
+                match state.vaults.recall_soul(&key) {
+                    Some(data) => {
+                        if let Ok(report) = serde_json::from_str::<CmdInjTestReport>(&data) {
+                            let markdown_report = format_cmdinj_report_markdown(&report);
+                            json!({
+                                "type": "webguard.cmdinj.report",
+                                "scan_id": report.id,
+                                "target": report.target_url,
+                                "parameter": report.parameter,
+                                "message": markdown_report,
+                                "report": serde_json::to_value(&report).unwrap_or(json!(null))
+                            })
+                        } else {
+                            json!({
+                                "type": "error",
+                                "message": format!("Failed to parse stored Command Injection report: {}", sub_arg)
+                            })
+                        }
+                    }
+                    None => {
+                        json!({
+                            "type": "error",
+                            "message": format!("Command Injection report not found: {}. Use `webguard cmdinj-report last` for the most recent test.", sub_arg)
+                        })
+                    }
+                }
+            }
+        }
+        _ => {
+            json!({
+                "type": "error",
+                "message": format!("Unknown webguard command: {}. Use `webguard help` for available commands.", sub)
+            })
+        }
+    }
+}
+
+/// Handle security commands (Network Security Agent)
+async fn handle_security_command(state: &AppState, cmd: &str) -> serde_json::Value {
+    let Some(agent) = &state.security_agent else {
+        return json!({
+            "type": "error",
+            "message": "Network Security Agent not enabled. Set NETWORK_SECURITY_AGENT_ENABLED=true to enable security scanning capabilities."
+        });
+    };
+
+    let parts: Vec<&str> = cmd.split_whitespace().collect();
+    let lower = cmd.to_ascii_lowercase();
+
+    // Handle "scan" and "nmap" as shortcuts
+    if lower.starts_with("scan ") || lower.starts_with("nmap ") {
+        let target = if parts.len() > 1 { parts[1] } else { "local" };
+        let mut agent_guard = agent.lock().await;
+        
+        return match agent_guard.quick_scan(target).await {
+            Ok(results) => {
+                // Generate AI analysis if LLM is available
+                let analysis = if let Some(llm) = state.llm.lock().await.as_ref() {
+                    let prompt = format!(
+                        "Analyze this network scan result and provide a brief security assessment:\n{}",
+                        serde_json::to_string_pretty(&results).unwrap_or_default()
+                    );
+                    llm.speak(&prompt, None).await.ok()
+                } else {
+                    None
+                };
+
+                json!({
+                    "type": "security.scan",
+                    "target": target,
+                    "results": results,
+                    "analysis": analysis,
+                    "timestamp": chrono::Utc::now().to_rfc3339()
+                })
+            },
+            Err(e) => json!({"type": "error", "message": e.to_string()})
+        };
+    }
+
+    // Handle "security" commands
+    if parts.len() < 2 {
+        return json!({
+            "type": "security.help",
+            "message": "Security Agent Commands:\n\
+                - security status - Show agent status\n\
+                - security scan <target> - Quick network scan\n\
+                - security scan full <target> - Full port scan\n\
+                - security vulns - List known vulnerabilities\n\
+                - security vulns check <target> - Check target for vulnerabilities\n\
+                - security playbooks - List available playbooks\n\
+                - security playbook <name> <target> - Execute a playbook\n\
+                - security mitre tactics - List MITRE ATT&CK tactics\n\
+                - security mitre techniques - List MITRE ATT&CK techniques\n\
+                - security tools - List available security tools\n\
+                - security tool <name> <args> - Run a security tool\n\
+                - security authorize <level> - Authorize security operations (passive/active/exploit)\n\
+                - security report - Generate security report\n\
+                \nShortcuts: 'scan <target>' or 'nmap <target>'"
+        });
+    }
+
+    let operation = parts[1].to_lowercase();
+    let mut agent_guard = agent.lock().await;
+
+    match operation.as_str() {
+        "status" => {
+            let level = agent_guard.current_authorization_level();
+            let status = agent_guard.get_security_status().await;
+            json!({
+                "type": "security.status",
+                "enabled": true,
+                "authorization_level": format!("{:?}", level),
+                "authorized_by": status.authorized_by,
+                "expires_at": status.expires_at.map(|t| t.to_rfc3339()),
+                "authorized_targets": status.authorized_targets,
+                "capabilities": ["network_scanning", "vulnerability_assessment", "mitre_attack_mapping", "security_playbooks", "kali_tools_integration"]
+            })
+        },
+        "scan" => {
+            let target = if parts.len() > 2 { parts[2] } else { "local" };
+            let is_full = parts.len() > 2 && parts[2] == "full";
+            let actual_target = if is_full && parts.len() > 3 { parts[3] } else { target };
+
+            match agent_guard.quick_scan(actual_target).await {
+                Ok(results) => json!({
+                    "type": "security.scan",
+                    "target": actual_target,
+                    "scan_type": if is_full { "full" } else { "quick" },
+                    "results": results,
+                    "timestamp": chrono::Utc::now().to_rfc3339()
+                }),
+                Err(e) => json!({"type": "error", "message": e.to_string()})
+            }
+        },
+        "vulns" => {
+            if parts.len() > 2 && parts[2] == "check" {
+                let target = if parts.len() > 3 { parts[3] } else { "localhost" };
+                match agent_guard.check_vulnerabilities(target, None).await {
+                    Ok(findings) => json!({
+                        "type": "security.vulnerabilities.check",
+                        "target": target,
+                        "findings": findings,
+                        "timestamp": chrono::Utc::now().to_rfc3339()
+                    }),
+                    Err(e) => json!({"type": "error", "message": e.to_string()})
+                }
+            } else {
+                let vulns = agent_guard.get_vulnerability_database();
+                json!({
+                    "type": "security.vulnerabilities",
+                    "count": vulns.len(),
+                    "vulnerabilities": vulns
+                })
+            }
+        },
+        "playbooks" => {
+            let playbooks = agent_guard.list_playbooks();
+            json!({
+                "type": "security.playbooks",
+                "count": playbooks.len(),
+                "playbooks": playbooks.iter().map(|p| json!({
+                    "id": p.id,
+                    "name": p.name,
+                    "description": p.description,
+                    "required_level": format!("{:?}", p.required_level)
+                })).collect::<Vec<_>>()
+            })
+        },
+        "playbook" => {
+            if parts.len() < 4 {
+                return json!({
+                    "type": "error",
+                    "message": "Usage: security playbook <playbook_name> <target>"
+                });
+            }
+            let playbook_name = parts[2];
+            let target = parts[3];
+            
+            match agent_guard.execute_playbook(playbook_name, target).await {
+                Ok(result) => json!({
+                    "type": "security.playbook.result",
+                    "playbook": playbook_name,
+                    "target": target,
+                    "result": serde_json::to_value(&result).unwrap_or_default(),
+                    "timestamp": chrono::Utc::now().to_rfc3339()
+                }),
+                Err(e) => json!({"type": "error", "message": e.to_string()})
+            }
+        },
+        "mitre" => {
+            if parts.len() < 3 {
+                return json!({
+                    "type": "error",
+                    "message": "Usage: security mitre <tactics|techniques|groups>"
+                });
+            }
+            match parts[2].to_lowercase().as_str() {
+                "tactics" => {
+                    let tactics = agent_guard.get_mitre_tactics();
+                    json!({
+                        "type": "security.mitre.tactics",
+                        "count": tactics.len(),
+                        "tactics": tactics
+                    })
+                },
+                "techniques" => {
+                    let techniques = agent_guard.get_mitre_techniques();
+                    json!({
+                        "type": "security.mitre.techniques",
+                        "count": techniques.len(),
+                        "techniques": techniques
+                    })
+                },
+                "groups" => {
+                    let groups = agent_guard.get_mitre_threat_groups();
+                    json!({
+                        "type": "security.mitre.groups",
+                        "count": groups.len(),
+                        "groups": groups
+                    })
+                },
+                _ => json!({
+                    "type": "error",
+                    "message": "Unknown MITRE subcommand. Use: tactics, techniques, or groups"
+                })
+            }
+        },
+        "tools" => {
+            let tools = agent_guard.list_available_tools();
+            json!({
+                "type": "security.tools",
+                "count": tools.len(),
+                "tools": tools
+            })
+        },
+        "tool" => {
+            if parts.len() < 3 {
+                return json!({
+                    "type": "error",
+                    "message": "Usage: security tool <tool_name> [args...]"
+                });
+            }
+            let tool_name = parts[2];
+            let args: Vec<String> = parts[3..].iter().map(|s| s.to_string()).collect();
+            
+            match agent_guard.execute_tool(tool_name, Some(&args), None).await {
+                Ok(output) => json!({
+                    "type": "security.tool.result",
+                    "tool": tool_name,
+                    "output": output,
+                    "timestamp": chrono::Utc::now().to_rfc3339()
+                }),
+                Err(e) => json!({"type": "error", "message": e.to_string()})
+            }
+        },
+        "authorize" => {
+            if parts.len() < 3 {
+                return json!({
+                    "type": "error",
+                    "message": "Usage: security authorize <passive|active|exploit|offensive> [duration_hours]"
+                });
+            }
+            let level_str = parts[2];
+            let level = match level_str.to_lowercase().as_str() {
+                "passive" => network_security_agent::SecurityLevel::Passive,
+                "active" => network_security_agent::SecurityLevel::Active,
+                "exploit" => network_security_agent::SecurityLevel::Exploit,
+                "offensive" => network_security_agent::SecurityLevel::Offensive,
+                _ => {
+                    return json!({
+                        "type": "error",
+                        "message": format!("Unknown security level: {}. Valid: passive, active, exploit, offensive", level_str)
+                    });
+                }
+            };
+            
+            let duration_hours = parts.get(3).and_then(|s| s.parse().ok());
+            let targets = vec!["*".to_string()]; // Allow all targets by default
+            
+            match agent_guard.authorize(level, "chat_command", duration_hours, targets).await {
+                Ok(()) => {
+                    let status = agent_guard.get_security_status().await;
+                    json!({
+                        "type": "security.authorized",
+                        "level": level_str,
+                        "expires_at": status.expires_at.map(|t| t.to_rfc3339()),
+                        "message": format!("Security level set to {}. Be careful with elevated permissions.", level_str)
+                    })
+                },
+                Err(e) => json!({"type": "error", "message": e.to_string()})
+            }
+        },
+        "report" => {
+            let report = agent_guard.generate_security_report();
+            json!({
+                "type": "security.report",
+                "report": report,
+                "generated_at": chrono::Utc::now().to_rfc3339()
+            })
+        },
+        _ => {
+            json!({
+                "type": "error",
+                "message": format!("Unknown security operation: {}. Use 'security' for help.", operation)
+            })
+        }
+    }
+}
+
 /// Handle Tier 2 unrestricted execution commands
 async fn handle_unrestricted_execution(state: &AppState, cmd: &str) -> serde_json::Value {
     use cerebrum_nexus::{ToolAgent, ToolAgentConfig};
@@ -2438,6 +3494,21 @@ pub(crate) async fn command_to_response_json(state: &AppState, command: &str) ->
         return handle_code_command(state, &cmd).await;
     }
 
+    // Security commands: security <operation> [args]
+    if lower.starts_with("security ") || lower.starts_with("scan ") || lower.starts_with("nmap ") {
+        return handle_security_command(state, &cmd).await;
+    }
+
+    // WebGuard commands: webguard <scan|passive|report> <url>
+    if lower.starts_with("webguard ") {
+        return handle_webguard_command(state, &cmd).await;
+    }
+
+    // Reporting Agent commands: report <vuln|last|file|url|list|get> ...
+    if lower.starts_with("report ") {
+        return reporting_handler::handle_reporting_command(state, &cmd).await;
+    }
+
     // Tier 2 Unrestricted Execution: exec <command> | cwd=...
     if lower.starts_with("exec ") || lower.starts_with("execute ") {
         return handle_unrestricted_execution(state, &cmd).await;
@@ -2483,6 +3554,51 @@ pub(crate) async fn command_to_response_json(state: &AppState, command: &str) ->
                 gm.affection_level.clamp(0.0, 1.0) * 100.0,
             )
         });
+    }
+
+    // Swarm status command (power-user feature)
+    if swarm_delegation::is_swarm_status_command(&cmd) {
+        let response_text = swarm_delegation::format_swarm_status(&state.swarm_interface).await;
+        return json!({
+            "type": "swarm.status",
+            "message": response_text
+        });
+    }
+    
+    // Swarm alerts command (power-user feature)
+    if swarm_delegation::is_swarm_alerts_command(&cmd) {
+        let response_text = swarm_delegation::format_swarm_alerts(&state.swarm_interface).await;
+        return json!({
+            "type": "swarm.alerts",
+            "message": response_text
+        });
+    }
+    
+    // Check if task should be delegated to swarm (hidden from user)
+    if let Some((task_type, complexity)) = swarm_delegation::analyze_task(&cmd) {
+        tracing::info!(
+            "REST API: Task detected - type={:?}, complexity={:?} - checking swarm delegation",
+            task_type, complexity
+        );
+        
+        // Try to delegate to swarm
+        if let Some(swarm_result) = swarm_delegation::try_delegate_to_swarm(
+            &state.swarm_interface,
+            &cmd,
+            task_type,
+            complexity,
+        )
+        .await
+        {
+            // Swarm completed the task - Sola presents result as her own
+            tracing::info!("REST API: Swarm delegation successful - returning synthesized response");
+            return json!({
+                "type": "speak_response",
+                "message": swarm_result
+            });
+        }
+        // If swarm delegation failed or no ORCHs available, fall through to normal LLM processing
+        tracing::info!("REST API: Swarm delegation not available - Sola handles directly");
     }
 
     // Default: route to LLM.
@@ -3684,6 +4800,793 @@ async fn api_home_automation_status(state: web::Data<AppState>) -> impl Responde
     HttpResponse::Ok().json(status)
 }
 
+// ============================================================================
+// Network Security Agent API Handlers
+// ============================================================================
+
+#[derive(Debug, Deserialize)]
+struct SecurityScanRequest {
+    target: String,
+    #[serde(default)]
+    ports: Option<String>,
+    #[serde(default)]
+    scan_type: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct SecurityQuickScanRequest {
+    #[serde(default)]
+    target: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct SecurityVulnCheckRequest {
+    target: String,
+    #[serde(default)]
+    services: Option<Vec<String>>,
+}
+
+#[derive(Debug, Deserialize)]
+struct SecurityPlaybookRequest {
+    playbook_id: String,
+    target: String,
+    #[serde(default)]
+    options: Option<serde_json::Value>,
+}
+
+#[derive(Debug, Deserialize)]
+struct SecurityAuthorizeRequest {
+    level: String,
+    #[serde(default)]
+    targets: Option<Vec<String>>,
+    #[serde(default)]
+    duration_minutes: Option<u64>,
+    #[serde(default)]
+    reason: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct SecurityToolRequest {
+    tool: String,
+    #[serde(default)]
+    args: Option<Vec<String>>,
+    #[serde(default)]
+    target: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct SecurityExploitRequest {
+    exploit_id: String,
+    target: String,
+    #[serde(default)]
+    options: Option<serde_json::Value>,
+}
+
+async fn api_security_status(state: web::Data<AppState>) -> impl Responder {
+    let enabled = state.security_agent.is_some();
+    
+    let mut status = json!({
+        "enabled": enabled,
+        "timestamp": chrono::Utc::now().to_rfc3339(),
+        "agent_name": "Network Security Agent",
+        "capabilities": [
+            "network_scanning",
+            "vulnerability_assessment",
+            "mitre_attack_mapping",
+            "security_playbooks",
+            "kali_tools_integration",
+            "exploit_framework"
+        ]
+    });
+    
+    if enabled {
+        if let Some(agent) = &state.security_agent {
+            let agent_guard = agent.lock().await;
+            status["authorization_level"] = json!(format!("{:?}", agent_guard.current_authorization_level()));
+            status["available_playbooks"] = json!(agent_guard.list_playbooks().len());
+            status["available_tools"] = json!(agent_guard.list_available_tools().len());
+        }
+    }
+    
+    HttpResponse::Ok().json(status)
+}
+
+async fn api_security_scan(
+    state: web::Data<AppState>,
+    body: web::Json<SecurityScanRequest>,
+) -> impl Responder {
+    let Some(agent) = &state.security_agent else {
+        return HttpResponse::BadRequest().json(json!({
+            "error": "Network Security Agent not enabled. Set NETWORK_SECURITY_AGENT_ENABLED=true"
+        }));
+    };
+    
+    let mut agent_guard = agent.lock().await;
+    
+    // Parse ports if provided
+    let ports: Option<Vec<u16>> = body.ports.as_ref().map(|p| {
+        p.split(',')
+            .filter_map(|s| s.trim().parse().ok())
+            .collect()
+    });
+    
+    match agent_guard.scan_network(&body.target, ports.as_deref()).await {
+        Ok(results) => HttpResponse::Ok().json(json!({
+            "status": "completed",
+            "target": body.target,
+            "results": results,
+            "timestamp": chrono::Utc::now().to_rfc3339()
+        })),
+        Err(e) => HttpResponse::InternalServerError().json(json!({
+            "error": e.to_string()
+        }))
+    }
+}
+
+async fn api_security_quick_scan(
+    state: web::Data<AppState>,
+    body: web::Json<SecurityQuickScanRequest>,
+) -> impl Responder {
+    let Some(agent) = &state.security_agent else {
+        return HttpResponse::BadRequest().json(json!({
+            "error": "Network Security Agent not enabled. Set NETWORK_SECURITY_AGENT_ENABLED=true"
+        }));
+    };
+    
+    let mut agent_guard = agent.lock().await;
+    
+    // Default to local network if no target specified
+    let target = body.target.as_deref().unwrap_or("local");
+    
+    match agent_guard.quick_scan(target).await {
+        Ok(results) => HttpResponse::Ok().json(json!({
+            "status": "completed",
+            "scan_type": "quick",
+            "target": target,
+            "results": results,
+            "timestamp": chrono::Utc::now().to_rfc3339()
+        })),
+        Err(e) => HttpResponse::InternalServerError().json(json!({
+            "error": e.to_string()
+        }))
+    }
+}
+
+async fn api_security_vulnerabilities(state: web::Data<AppState>) -> impl Responder {
+    let Some(agent) = &state.security_agent else {
+        return HttpResponse::BadRequest().json(json!({
+            "error": "Network Security Agent not enabled. Set NETWORK_SECURITY_AGENT_ENABLED=true"
+        }));
+    };
+    
+    let agent_guard = agent.lock().await;
+    let vulns = agent_guard.get_vulnerability_database();
+    
+    HttpResponse::Ok().json(json!({
+        "count": vulns.len(),
+        "vulnerabilities": vulns,
+        "timestamp": chrono::Utc::now().to_rfc3339()
+    }))
+}
+
+async fn api_security_check_vulnerabilities(
+    state: web::Data<AppState>,
+    body: web::Json<SecurityVulnCheckRequest>,
+) -> impl Responder {
+    let Some(agent) = &state.security_agent else {
+        return HttpResponse::BadRequest().json(json!({
+            "error": "Network Security Agent not enabled. Set NETWORK_SECURITY_AGENT_ENABLED=true"
+        }));
+    };
+    
+    let mut agent_guard = agent.lock().await;
+    
+    match agent_guard.check_vulnerabilities(&body.target, body.services.as_deref()).await {
+        Ok(findings) => HttpResponse::Ok().json(json!({
+            "status": "completed",
+            "target": body.target,
+            "findings": findings,
+            "timestamp": chrono::Utc::now().to_rfc3339()
+        })),
+        Err(e) => HttpResponse::InternalServerError().json(json!({
+            "error": e.to_string()
+        }))
+    }
+}
+
+async fn api_security_playbooks(state: web::Data<AppState>) -> impl Responder {
+    let Some(agent) = &state.security_agent else {
+        return HttpResponse::BadRequest().json(json!({
+            "error": "Network Security Agent not enabled. Set NETWORK_SECURITY_AGENT_ENABLED=true"
+        }));
+    };
+    
+    let agent_guard = agent.lock().await;
+    let playbooks = agent_guard.list_playbooks();
+    
+    HttpResponse::Ok().json(json!({
+        "count": playbooks.len(),
+        "playbooks": playbooks,
+        "timestamp": chrono::Utc::now().to_rfc3339()
+    }))
+}
+
+async fn api_security_execute_playbook(
+    state: web::Data<AppState>,
+    body: web::Json<SecurityPlaybookRequest>,
+) -> impl Responder {
+    let Some(agent) = &state.security_agent else {
+        return HttpResponse::BadRequest().json(json!({
+            "error": "Network Security Agent not enabled. Set NETWORK_SECURITY_AGENT_ENABLED=true"
+        }));
+    };
+    
+    let mut agent_guard = agent.lock().await;
+    
+    match agent_guard.execute_playbook(&body.playbook_id, &body.target).await {
+        Ok(results) => HttpResponse::Ok().json(json!({
+            "status": "completed",
+            "playbook": body.playbook_id,
+            "target": body.target,
+            "results": results,
+            "timestamp": chrono::Utc::now().to_rfc3339()
+        })),
+        Err(e) => HttpResponse::InternalServerError().json(json!({
+            "error": e.to_string()
+        }))
+    }
+}
+
+async fn api_security_authorize(
+    state: web::Data<AppState>,
+    body: web::Json<SecurityAuthorizeRequest>,
+) -> impl Responder {
+    let Some(agent) = &state.security_agent else {
+        return HttpResponse::BadRequest().json(json!({
+            "error": "Network Security Agent not enabled. Set NETWORK_SECURITY_AGENT_ENABLED=true"
+        }));
+    };
+    
+    let agent_guard = agent.lock().await;
+    
+    // Parse security level from string
+    let level = match body.level.to_lowercase().as_str() {
+        "passive" => network_security_agent::SecurityLevel::Passive,
+        "active" => network_security_agent::SecurityLevel::Active,
+        "exploit" => network_security_agent::SecurityLevel::Exploit,
+        "offensive" => network_security_agent::SecurityLevel::Offensive,
+        _ => {
+            return HttpResponse::BadRequest().json(json!({
+                "error": format!("Unknown security level: {}. Valid levels: passive, active, exploit, offensive", body.level)
+            }));
+        }
+    };
+    
+    let duration_hours = Some(body.duration_minutes.unwrap_or(30) / 60 + 1);
+    let targets = body.targets.clone().unwrap_or_else(|| vec!["*".to_string()]);
+    let user = body.reason.as_deref().unwrap_or("API request");
+    
+    match agent_guard.authorize(level, user, duration_hours, targets).await {
+        Ok(()) => {
+            let gate = agent_guard.get_security_status().await;
+            HttpResponse::Ok().json(json!({
+                "status": "authorized",
+                "level": body.level,
+                "expires_at": gate.expires_at.map(|t| t.to_rfc3339()),
+                "targets": gate.authorized_targets,
+                "timestamp": chrono::Utc::now().to_rfc3339()
+            }))
+        },
+        Err(e) => HttpResponse::Forbidden().json(json!({
+            "error": e.to_string()
+        }))
+    }
+}
+
+async fn api_security_mitre_tactics(state: web::Data<AppState>) -> impl Responder {
+    let Some(agent) = &state.security_agent else {
+        return HttpResponse::BadRequest().json(json!({
+            "error": "Network Security Agent not enabled. Set NETWORK_SECURITY_AGENT_ENABLED=true"
+        }));
+    };
+    
+    let agent_guard = agent.lock().await;
+    let tactics = agent_guard.get_mitre_tactics();
+    
+    HttpResponse::Ok().json(json!({
+        "count": tactics.len(),
+        "tactics": tactics,
+        "framework": "MITRE ATT&CK",
+        "timestamp": chrono::Utc::now().to_rfc3339()
+    }))
+}
+
+async fn api_security_mitre_techniques(state: web::Data<AppState>) -> impl Responder {
+    let Some(agent) = &state.security_agent else {
+        return HttpResponse::BadRequest().json(json!({
+            "error": "Network Security Agent not enabled. Set NETWORK_SECURITY_AGENT_ENABLED=true"
+        }));
+    };
+    
+    let agent_guard = agent.lock().await;
+    let techniques = agent_guard.get_mitre_techniques();
+    
+    HttpResponse::Ok().json(json!({
+        "count": techniques.len(),
+        "techniques": techniques,
+        "framework": "MITRE ATT&CK",
+        "timestamp": chrono::Utc::now().to_rfc3339()
+    }))
+}
+
+async fn api_security_mitre_groups(state: web::Data<AppState>) -> impl Responder {
+    let Some(agent) = &state.security_agent else {
+        return HttpResponse::BadRequest().json(json!({
+            "error": "Network Security Agent not enabled. Set NETWORK_SECURITY_AGENT_ENABLED=true"
+        }));
+    };
+    
+    let agent_guard = agent.lock().await;
+    let groups = agent_guard.get_mitre_threat_groups();
+    
+    HttpResponse::Ok().json(json!({
+        "count": groups.len(),
+        "groups": groups,
+        "framework": "MITRE ATT&CK",
+        "timestamp": chrono::Utc::now().to_rfc3339()
+    }))
+}
+
+async fn api_security_tools(state: web::Data<AppState>) -> impl Responder {
+    let Some(agent) = &state.security_agent else {
+        return HttpResponse::BadRequest().json(json!({
+            "error": "Network Security Agent not enabled. Set NETWORK_SECURITY_AGENT_ENABLED=true"
+        }));
+    };
+    
+    let agent_guard = agent.lock().await;
+    let tools = agent_guard.list_available_tools();
+    
+    HttpResponse::Ok().json(json!({
+        "count": tools.len(),
+        "tools": tools,
+        "timestamp": chrono::Utc::now().to_rfc3339()
+    }))
+}
+
+async fn api_security_execute_tool(
+    state: web::Data<AppState>,
+    body: web::Json<SecurityToolRequest>,
+) -> impl Responder {
+    let Some(agent) = &state.security_agent else {
+        return HttpResponse::BadRequest().json(json!({
+            "error": "Network Security Agent not enabled. Set NETWORK_SECURITY_AGENT_ENABLED=true"
+        }));
+    };
+    
+    let mut agent_guard = agent.lock().await;
+    
+    match agent_guard.execute_tool(
+        &body.tool,
+        body.args.as_deref(),
+        body.target.as_deref(),
+    ).await {
+        Ok(output) => HttpResponse::Ok().json(json!({
+            "status": "completed",
+            "tool": body.tool,
+            "output": output,
+            "timestamp": chrono::Utc::now().to_rfc3339()
+        })),
+        Err(e) => HttpResponse::InternalServerError().json(json!({
+            "error": e.to_string()
+        }))
+    }
+}
+
+async fn api_security_exploit(
+    state: web::Data<AppState>,
+    body: web::Json<SecurityExploitRequest>,
+) -> impl Responder {
+    let Some(agent) = &state.security_agent else {
+        return HttpResponse::BadRequest().json(json!({
+            "error": "Network Security Agent not enabled. Set NETWORK_SECURITY_AGENT_ENABLED=true"
+        }));
+    };
+    
+    let mut agent_guard = agent.lock().await;
+    
+    // Check authorization level before allowing exploit execution
+    if !agent_guard.is_exploit_authorized() {
+        return HttpResponse::Forbidden().json(json!({
+            "error": "Exploit execution requires explicit authorization. Use /api/security/authorize first.",
+            "required_level": "exploit",
+            "current_level": format!("{:?}", agent_guard.current_authorization_level())
+        }));
+    }
+    
+    match agent_guard.execute_exploit(
+        &body.exploit_id,
+        &body.target,
+        body.options.as_ref(),
+    ).await {
+        Ok(result) => HttpResponse::Ok().json(json!({
+            "status": "completed",
+            "exploit": body.exploit_id,
+            "target": body.target,
+            "result": result,
+            "timestamp": chrono::Utc::now().to_rfc3339()
+        })),
+        Err(e) => HttpResponse::InternalServerError().json(json!({
+            "error": e.to_string()
+        }))
+    }
+}
+
+async fn api_security_report(state: web::Data<AppState>) -> impl Responder {
+    let Some(agent) = &state.security_agent else {
+        return HttpResponse::BadRequest().json(json!({
+            "error": "Network Security Agent not enabled. Set NETWORK_SECURITY_AGENT_ENABLED=true"
+        }));
+    };
+    
+    let agent_guard = agent.lock().await;
+    let report = agent_guard.generate_security_report();
+    
+    HttpResponse::Ok().json(json!({
+        "report": report,
+        "generated_at": chrono::Utc::now().to_rfc3339()
+    }))
+}
+
+// ============================================================================
+// End Network Security Agent API Handlers
+// ============================================================================
+
+// ============================================================================
+// Malware Sandbox Agent API Handlers
+// ============================================================================
+
+#[derive(Debug, Deserialize)]
+struct SandboxCreateSessionRequest {}
+
+#[derive(Debug, Deserialize)]
+struct SandboxUploadRequest {
+    session_id: String,
+    file_name: String,
+    file_data_base64: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct SandboxAnalyzeRequest {
+    session_id: String,
+    file_id: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct SandboxQuickScanRequest {
+    session_id: String,
+    file_id: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct SandboxExecutePlaybookRequest {
+    playbook_id: String,
+    session_id: String,
+    file_id: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct SandboxListFilesRequest {
+    session_id: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct SandboxClearRequest {
+    session_id: String,
+}
+
+async fn api_sandbox_status(state: web::Data<AppState>) -> impl Responder {
+    let enabled = state.sandbox_agent.is_some();
+    
+    let mut status = json!({
+        "enabled": enabled,
+        "timestamp": chrono::Utc::now().to_rfc3339(),
+        "agent_name": "Malware Sandbox Agent",
+        "capabilities": [
+            "file_isolation",
+            "virustotal_scanning",
+            "static_analysis",
+            "mitre_attack_mapping",
+            "malware_playbooks",
+            "behavioral_analysis"
+        ]
+    });
+    
+    if enabled {
+        status["virustotal_enabled"] = json!(env_nonempty("VIRUSTOTAL_API_KEY").is_some());
+        status["sandbox_manager_ready"] = json!(state.sandbox_manager.is_some());
+        status["analysis_agent_ready"] = json!(state.sandbox_agent.is_some());
+    }
+    
+    HttpResponse::Ok().json(status)
+}
+
+async fn api_sandbox_create_session(state: web::Data<AppState>) -> impl Responder {
+    let Some(manager) = &state.sandbox_manager else {
+        return HttpResponse::BadRequest().json(json!({
+            "error": "Malware Sandbox not enabled. Set MALWARE_SANDBOX_ENABLED=true"
+        }));
+    };
+    
+    match manager.create_session("api_user").await {
+        Ok(session_id) => HttpResponse::Ok().json(json!({
+            "status": "created",
+            "session_id": session_id,
+            "timestamp": chrono::Utc::now().to_rfc3339()
+        })),
+        Err(e) => HttpResponse::InternalServerError().json(json!({
+            "error": e.to_string()
+        }))
+    }
+}
+
+async fn api_sandbox_upload(
+    state: web::Data<AppState>,
+    body: web::Json<SandboxUploadRequest>,
+) -> impl Responder {
+    let Some(manager) = &state.sandbox_manager else {
+        return HttpResponse::BadRequest().json(json!({
+            "error": "Malware Sandbox not enabled. Set MALWARE_SANDBOX_ENABLED=true"
+        }));
+    };
+    
+    // Decode base64 file data
+    let file_data = match base64::engine::general_purpose::STANDARD.decode(&body.file_data_base64) {
+        Ok(data) => data,
+        Err(_) => {
+            return HttpResponse::BadRequest().json(json!({
+                "error": "Invalid base64 file data"
+            }));
+        }
+    };
+    
+    match manager.upload_file(&body.session_id, &body.file_name, &file_data).await {
+        Ok(file_id) => HttpResponse::Ok().json(json!({
+            "status": "uploaded",
+            "session_id": &body.session_id,
+            "file_id": file_id,
+            "file_name": body.file_name,
+            "file_size": file_data.len(),
+            "timestamp": chrono::Utc::now().to_rfc3339()
+        })),
+        Err(e) => HttpResponse::InternalServerError().json(json!({
+            "error": e.to_string()
+        }))
+    }
+}
+
+async fn api_sandbox_analyze(
+    state: web::Data<AppState>,
+    body: web::Json<SandboxAnalyzeRequest>,
+) -> impl Responder {
+    let Some(agent) = &state.sandbox_agent else {
+        return HttpResponse::BadRequest().json(json!({
+            "error": "Malware Sandbox Agent not enabled. Set MALWARE_SANDBOX_ENABLED=true"
+        }));
+    };
+    
+    let agent_guard = agent.lock().await;
+    
+    match agent_guard.analyze_file(&body.session_id, &body.file_id).await {
+        Ok(result) => HttpResponse::Ok().json(json!({
+            "status": "completed",
+            "analysis": result,
+            "timestamp": chrono::Utc::now().to_rfc3339()
+        })),
+        Err(e) => HttpResponse::InternalServerError().json(json!({
+            "error": e.to_string()
+        }))
+    }
+}
+
+async fn api_sandbox_quick_scan(
+    state: web::Data<AppState>,
+    body: web::Json<SandboxQuickScanRequest>,
+) -> impl Responder {
+    // Quick scan uses the full analysis - there's no separate quick_scan method
+    // This endpoint is a convenience wrapper that does the same as analyze
+    let Some(agent) = &state.sandbox_agent else {
+        return HttpResponse::BadRequest().json(json!({
+            "error": "Malware Sandbox Agent not enabled. Set MALWARE_SANDBOX_ENABLED=true"
+        }));
+    };
+    
+    let agent_guard = agent.lock().await;
+    
+    match agent_guard.analyze_file(&body.session_id, &body.file_id).await {
+        Ok(result) => HttpResponse::Ok().json(json!({
+            "status": "completed",
+            "scan_result": {
+                "threat_level": result.threat_assessment.threat_level,
+                "summary": result.threat_assessment.summary,
+                "virustotal": result.virustotal_result,
+            },
+            "timestamp": chrono::Utc::now().to_rfc3339()
+        })),
+        Err(e) => HttpResponse::InternalServerError().json(json!({
+            "error": e.to_string()
+        }))
+    }
+}
+
+async fn api_sandbox_playbooks(_state: web::Data<AppState>) -> impl Responder {
+    // Playbooks are YAML files in the playbooks directory
+    // Return a static list of available playbooks
+    let playbooks = vec![
+        json!({
+            "id": "malware_analysis",
+            "name": "Malware Analysis",
+            "description": "Comprehensive malware analysis with static and behavioral analysis"
+        }),
+        json!({
+            "id": "phishing_analysis",
+            "name": "Phishing Analysis",
+            "description": "Email and attachment phishing analysis"
+        }),
+        json!({
+            "id": "exploit_analysis",
+            "name": "Exploit Analysis",
+            "description": "Vulnerability and exploit analysis"
+        }),
+    ];
+    
+    HttpResponse::Ok().json(json!({
+        "count": playbooks.len(),
+        "playbooks": playbooks,
+        "timestamp": chrono::Utc::now().to_rfc3339()
+    }))
+}
+
+async fn api_sandbox_execute_playbook(
+    state: web::Data<AppState>,
+    body: web::Json<SandboxExecutePlaybookRequest>,
+) -> impl Responder {
+    // Playbook execution runs the full analysis - playbooks are conceptual groupings
+    // For now, all playbooks run the same comprehensive analysis
+    let Some(agent) = &state.sandbox_agent else {
+        return HttpResponse::BadRequest().json(json!({
+            "error": "Malware Sandbox Agent not enabled. Set MALWARE_SANDBOX_ENABLED=true"
+        }));
+    };
+    
+    let agent_guard = agent.lock().await;
+    
+    match agent_guard.analyze_file(&body.session_id, &body.file_id).await {
+        Ok(result) => HttpResponse::Ok().json(json!({
+            "status": "completed",
+            "playbook": &body.playbook_id,
+            "result": result,
+            "timestamp": chrono::Utc::now().to_rfc3339()
+        })),
+        Err(e) => HttpResponse::InternalServerError().json(json!({
+            "error": e.to_string()
+        }))
+    }
+}
+
+async fn api_sandbox_list_files(
+    state: web::Data<AppState>,
+    body: web::Json<SandboxListFilesRequest>,
+) -> impl Responder {
+    let Some(manager) = &state.sandbox_manager else {
+        return HttpResponse::BadRequest().json(json!({
+            "error": "Malware Sandbox not enabled. Set MALWARE_SANDBOX_ENABLED=true"
+        }));
+    };
+    
+    match manager.list_files(&body.session_id).await {
+        Ok(files) => HttpResponse::Ok().json(json!({
+            "count": files.len(),
+            "files": files,
+            "timestamp": chrono::Utc::now().to_rfc3339()
+        })),
+        Err(e) => HttpResponse::InternalServerError().json(json!({
+            "error": e.to_string()
+        }))
+    }
+}
+
+async fn api_sandbox_clear(
+    state: web::Data<AppState>,
+    body: web::Json<SandboxClearRequest>,
+) -> impl Responder {
+    let Some(manager) = &state.sandbox_manager else {
+        return HttpResponse::BadRequest().json(json!({
+            "error": "Malware Sandbox not enabled. Set MALWARE_SANDBOX_ENABLED=true"
+        }));
+    };
+    
+    match manager.clear_session(&body.session_id).await {
+        Ok(()) => HttpResponse::Ok().json(json!({
+            "status": "cleared",
+            "session_id": &body.session_id,
+            "timestamp": chrono::Utc::now().to_rfc3339()
+        })),
+        Err(e) => HttpResponse::InternalServerError().json(json!({
+            "error": e.to_string()
+        }))
+    }
+}
+
+// ============================================================================
+// End Malware Sandbox Agent API Handlers
+// ============================================================================
+
+// ============================================================================
+// Hidden Swarm Coordination API Handlers (Power-User Mode)
+// ============================================================================
+
+#[derive(Debug, Deserialize)]
+struct SwarmModeToggleRequest {
+    visible: bool,
+}
+
+/// Get swarm status (only returns data if swarm mode is visible)
+async fn api_swarm_status(state: web::Data<AppState>) -> impl Responder {
+    let interface = state.swarm_interface.lock().await;
+    
+    match interface.get_swarm_status().await {
+        Some(status) => HttpResponse::Ok().json(json!({
+            "visible": true,
+            "status": status
+        })),
+        None => HttpResponse::Ok().json(json!({
+            "visible": false,
+            "message": "Swarm mode is hidden. Use 'swarm mode on' command to reveal."
+        }))
+    }
+}
+
+/// Toggle swarm mode visibility (power-user feature)
+async fn api_swarm_mode_toggle(
+    state: web::Data<AppState>,
+    body: web::Json<SwarmModeToggleRequest>,
+) -> impl Responder {
+    let interface = state.swarm_interface.lock().await;
+    interface.toggle_swarm_mode(body.visible).await;
+    
+    let phoenix_name = std::env::var("PHOENIX_NAME").unwrap_or_else(|_| "Sola".to_string());
+    
+    if body.visible {
+        HttpResponse::Ok().json(json!({
+            "status": "swarm_mode_enabled",
+            "message": format!("Swarm mode enabled. {} will now show ORCH activity.", phoenix_name),
+            "visible": true
+        }))
+    } else {
+        HttpResponse::Ok().json(json!({
+            "status": "swarm_mode_disabled",
+            "message": format!("Swarm mode hidden. {} remains your single companion.", phoenix_name),
+            "visible": false
+        }))
+    }
+}
+
+/// Get pending anomaly alerts from ORCHs
+async fn api_swarm_alerts(state: web::Data<AppState>) -> impl Responder {
+    let interface = state.swarm_interface.lock().await;
+    let alerts = interface.check_alerts().await;
+    
+    HttpResponse::Ok().json(json!({
+        "alerts": alerts,
+        "count": alerts.len()
+    }))
+}
+
+// ============================================================================
+// End Hidden Swarm Coordination API Handlers
+// ============================================================================
+
 async fn api_outlook_create_appointment(
     state: web::Data<AppState>,
     body: web::Json<OutlookCreateAppointmentRequest>,
@@ -4301,6 +6204,11 @@ async fn main() -> std::io::Result<()> {
     let proactive_state = Arc::new(proactive::ProactiveState::from_env());
     let (proactive_tx, _proactive_rx) = tokio::sync::broadcast::channel(100);
 
+    // Initialize Hidden Swarm Coordination (Sola remains single visible face)
+    let (swarm_bus, swarm_interface, _swarm_auction_tx) = create_swarm_system();
+    let swarm_interface = Arc::new(Mutex::new(swarm_interface));
+    info!("Hidden Swarm Coordination initialized (Sola remains single visible companion)");
+
     // Initialize Voice IO
     let voice_io = Arc::new(VoiceIO::from_env());
     info!("Voice IO initialized");
@@ -4317,6 +6225,64 @@ async fn main() -> std::io::Result<()> {
         )
         .await;
     });
+
+    // Initialize Malware Sandbox (SandboxManager + MalwareSandboxAgent)
+    let (sandbox_manager_opt, sandbox_agent_opt) = if env_truthy("MALWARE_SANDBOX_ENABLED") {
+        let sandbox_config = SandboxConfig {
+            base_path: env_nonempty("SANDBOX_PATH")
+                .map(PathBuf::from)
+                .unwrap_or_else(|| PathBuf::from("./data/sandbox")),
+            max_file_size_bytes: env_nonempty("SANDBOX_MAX_FILE_SIZE_MB")
+                .and_then(|s| s.parse::<u64>().ok())
+                .unwrap_or(50) * 1024 * 1024,
+            max_total_size_bytes: env_nonempty("SANDBOX_MAX_TOTAL_SIZE_MB")
+                .and_then(|s| s.parse::<u64>().ok())
+                .unwrap_or(500) * 1024 * 1024,
+            cleanup_days: env_nonempty("SANDBOX_CLEANUP_DAYS")
+                .and_then(|s| s.parse::<i64>().ok())
+                .unwrap_or(7),
+            allow_execution: false, // Always false for security
+            rate_limit_per_minute: env_nonempty("SANDBOX_RATE_LIMIT_PER_MINUTE")
+                .and_then(|s| s.parse::<usize>().ok())
+                .unwrap_or(10),
+        };
+
+        match SandboxManager::new(sandbox_config.clone()).await {
+            Ok(manager) => {
+                let manager_arc = Arc::new(manager);
+                info!("Sandbox Manager initialized");
+                
+                // Create MalwareSandboxAgent config
+                let agent_config = MalwareSandboxConfig {
+                    virustotal_enabled: env_nonempty("VIRUSTOTAL_API_KEY").is_some(),
+                    virustotal_api_key: env_nonempty("VIRUSTOTAL_API_KEY"),
+                    mitre_enabled: true,
+                    evolution_enabled: false,
+                    evolution_threshold: 100,
+                    accuracy_threshold: 0.8,
+                    playbook_dir: "./playbooks".to_string(),
+                };
+                
+                match MalwareSandboxAgent::awaken(manager_arc.clone(), agent_config).await {
+                    Ok(agent) => {
+                        info!("Malware Sandbox Agent initialized");
+                        (Some(manager_arc), Some(Arc::new(Mutex::new(agent))))
+                    }
+                    Err(e) => {
+                        warn!("Failed to initialize Malware Sandbox Agent: {}", e);
+                        (Some(manager_arc), None)
+                    }
+                }
+            }
+            Err(e) => {
+                warn!("Failed to initialize Sandbox Manager: {}", e);
+                (None, None)
+            }
+        }
+    } else {
+        info!("Malware Sandbox disabled (set MALWARE_SANDBOX_ENABLED=true to enable)");
+        (None, None)
+    };
 
     let state = AppState {
         vaults: v_store,
@@ -4342,8 +6308,38 @@ async fn main() -> std::io::Result<()> {
         voice_io,
         skill_system: Arc::new(Mutex::new(SkillSystem::awaken())),
         browser_prefs: Arc::new(Mutex::new(BrowserPrefs::from_env())),
+        security_agent: if env_truthy("NETWORK_SECURITY_AGENT_ENABLED") {
+            match NetworkSecurityAgent::awaken().await {
+                Ok(agent) => {
+                    info!("Network Security Agent initialized");
+                    Some(Arc::new(Mutex::new(agent)))
+                }
+                Err(e) => {
+                    warn!("Failed to initialize Network Security Agent: {}", e);
+                    None
+                }
+            }
+        } else {
+            info!("Network Security Agent disabled (set NETWORK_SECURITY_AGENT_ENABLED=true to enable)");
+            None
+        },
+        sandbox_manager: sandbox_manager_opt,
+        sandbox_agent: sandbox_agent_opt,
+        webguard: WebGuard::new().ok().map(Arc::new),
+        webguard_last_report: Arc::new(Mutex::new(None)),
+        xss_tester: XssTester::new().ok().map(Arc::new),
+        xss_last_report: Arc::new(Mutex::new(None)),
+        sqli_tester: SqliTester::new().ok().map(Arc::new),
+        sqli_last_report: Arc::new(Mutex::new(None)),
+        redirect_tester: RedirectTester::new().ok().map(Arc::new),
+        redirect_last_report: Arc::new(Mutex::new(None)),
+        cmdinj_tester: CmdInjTester::new().ok().map(Arc::new),
+        cmdinj_last_report: Arc::new(Mutex::new(None)),
+        reporting_agent: ReportingAgent::new().await.ok().map(|a| Arc::new(Mutex::new(a))),
         proactive_state,
         proactive_tx,
+        swarm_bus,
+        swarm_interface,
         version: env!("CARGO_PKG_VERSION").to_string(),
         dotenv_path: dotenv_path.map(|p| p.display().to_string()),
         dotenv_error,
@@ -4608,6 +6604,126 @@ async fn main() -> std::io::Result<()> {
                     .service(web::scope("/analytics").service(
                         web::resource("/track").route(web::post().to(api_analytics_track)),
                     ))
+                    // Network Security Agent routes
+                    .service(
+                        web::scope("/security")
+                            .service(
+                                web::resource("/status")
+                                    .route(web::get().to(api_security_status)),
+                            )
+                            .service(
+                                web::resource("/scan")
+                                    .route(web::post().to(api_security_scan)),
+                            )
+                            .service(
+                                web::resource("/scan/quick")
+                                    .route(web::post().to(api_security_quick_scan)),
+                            )
+                            .service(
+                                web::resource("/vulnerabilities")
+                                    .route(web::get().to(api_security_vulnerabilities)),
+                            )
+                            .service(
+                                web::resource("/vulnerabilities/check")
+                                    .route(web::post().to(api_security_check_vulnerabilities)),
+                            )
+                            .service(
+                                web::resource("/playbooks")
+                                    .route(web::get().to(api_security_playbooks)),
+                            )
+                            .service(
+                                web::resource("/playbooks/execute")
+                                    .route(web::post().to(api_security_execute_playbook)),
+                            )
+                            .service(
+                                web::resource("/authorize")
+                                    .route(web::post().to(api_security_authorize)),
+                            )
+                            .service(
+                                web::resource("/mitre/tactics")
+                                    .route(web::get().to(api_security_mitre_tactics)),
+                            )
+                            .service(
+                                web::resource("/mitre/techniques")
+                                    .route(web::get().to(api_security_mitre_techniques)),
+                            )
+                            .service(
+                                web::resource("/mitre/groups")
+                                    .route(web::get().to(api_security_mitre_groups)),
+                            )
+                            .service(
+                                web::resource("/tools")
+                                    .route(web::get().to(api_security_tools)),
+                            )
+                            .service(
+                                web::resource("/tools/execute")
+                                    .route(web::post().to(api_security_execute_tool)),
+                            )
+                            .service(
+                                web::resource("/exploit")
+                                    .route(web::post().to(api_security_exploit)),
+                            )
+                            .service(
+                                web::resource("/report")
+                                    .route(web::get().to(api_security_report)),
+                            ),
+                    )
+                    // Malware Sandbox Agent routes
+                    .service(
+                        web::scope("/sandbox")
+                            .service(
+                                web::resource("/status")
+                                    .route(web::get().to(api_sandbox_status)),
+                            )
+                            .service(
+                                web::resource("/session/create")
+                                    .route(web::post().to(api_sandbox_create_session)),
+                            )
+                            .service(
+                                web::resource("/upload")
+                                    .route(web::post().to(api_sandbox_upload)),
+                            )
+                            .service(
+                                web::resource("/analyze")
+                                    .route(web::post().to(api_sandbox_analyze)),
+                            )
+                            .service(
+                                web::resource("/scan/quick")
+                                    .route(web::post().to(api_sandbox_quick_scan)),
+                            )
+                            .service(
+                                web::resource("/playbooks")
+                                    .route(web::get().to(api_sandbox_playbooks)),
+                            )
+                            .service(
+                                web::resource("/playbooks/execute")
+                                    .route(web::post().to(api_sandbox_execute_playbook)),
+                            )
+                            .service(
+                                web::resource("/files/list")
+                                    .route(web::post().to(api_sandbox_list_files)),
+                            )
+                            .service(
+                                web::resource("/clear")
+                                    .route(web::post().to(api_sandbox_clear)),
+                            ),
+                    )
+                    // Hidden Swarm Coordination (power-user mode)
+                    .service(
+                        web::scope("/swarm")
+                            .service(
+                                web::resource("/status")
+                                    .route(web::get().to(api_swarm_status)),
+                            )
+                            .service(
+                                web::resource("/mode")
+                                    .route(web::post().to(api_swarm_mode_toggle)),
+                            )
+                            .service(
+                                web::resource("/alerts")
+                                    .route(web::get().to(api_swarm_alerts)),
+                            ),
+                    )
                     .default_service(web::route().to(api_not_found)),
             )
     })

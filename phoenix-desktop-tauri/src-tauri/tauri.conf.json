@@ -7,7 +7,7 @@
     "beforeDevCommand": "",
     "beforeBuildCommand": "",
     "devUrl": "http://localhost:1420",
-    "frontendDist": "../frontend_desktop/dist"
+    "frontendDist": "../../frontend_desktop/dist"
   },
   "app": {
     "withGlobalTauri": true,
@@ -20,7 +20,14 @@
         "resizable": true,
         "minWidth": 800,
         "minHeight": 600,
-        "center": true
+        "maxWidth": 2560,
+        "maxHeight": 1440,
+        "center": true,
+        "decorations": true,
+        "transparent": false,
+        "alwaysOnTop": false,
+        "fullscreen": false,
+        "skipTaskbar": false
       }
     ],
     "security": {
@@ -39,7 +46,28 @@
       "icons/icon.ico"
     ],
     "longDescription": "Sola AGI - Your personal AI companion powered by Phoenix AGI OS v2.4.0. Emotionally intelligent, proactive, and voice-capable. Features include chat interface, voice interaction, browser control, dreams panel, proactive communication, and advanced memory system.",
-    "shortDescription": "AI companion powered by Phoenix AGI OS v2.4.0"
+    "shortDescription": "AI companion powered by Phoenix AGI OS v2.4.0",
+    "windows": {
+      "certificateThumbprint": null,
+      "digestAlgorithm": "sha256",
+      "timestampUrl": "",
+      "wix": {
+        "language": "en-US"
+      }
+    },
+    "macOS": {
+      "frameworks": [],
+      "minimumSystemVersion": "10.13",
+      "exceptionDomain": "",
+      "signingIdentity": null,
+      "providerShortName": null,
+      "entitlements": null
+    },
+    "linux": {
+      "deb": {
+        "depends": []
+      }
+    }
   }
 }
 

@@ -5,7 +5,22 @@
  * Supports chat, commands, memory operations, and status queries.
  */
 
-const PHOENIX_WS_URL = import.meta.env.VITE_PHOENIX_WS_URL || 'ws://localhost:8888/ws';
+// Derive WebSocket URL from API URL if not explicitly set
+function getWebSocketUrl(): string {
+  const explicitWsUrl = import.meta.env.VITE_PHOENIX_WS_URL;
+  if (explicitWsUrl) {
+    return explicitWsUrl;
+  }
+  
+  // Derive from API URL
+  const apiUrl = import.meta.env.VITE_PHOENIX_API_URL || 'http://localhost:8888';
+  const url = new URL(apiUrl);
+  // Convert http/https to ws/wss
+  const wsProtocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
+  return `${wsProtocol}//${url.host}/ws`;
+}
+
+const PHOENIX_WS_URL = getWebSocketUrl();
 
 export interface WebSocketMessage {
   type:

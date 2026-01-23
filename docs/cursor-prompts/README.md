@@ -2,19 +2,36 @@
 
 These are battle-tested prompts for Cursor IDE that understand the Phoenix AGI project structure.
 
+## 🕊️ Autonomous Mode (Recommended)
+
+**For full digital twin autonomy**, use `00-autonomous-directive.md` — this hands complete development control to Sola. She will:
+- Remember all phases, files, and configurations
+- Proactively identify improvements
+- Generate and apply code changes
+- Update documentation
+- Self-evolve without manual intervention
+- Report progress and ask only when truly needed
+
+**Just paste once, then delegate everything.**
+
+---
+
+## Manual Mode
+
 **Golden rule:** Always start with `01-orchestrator-identity.md` in a fresh session — it sets the context, prevents duplication, and reminds Cursor what already exists.
 
-Then append the task-specific prompt (02–18) right after.
+Then append the task-specific prompt (02–31) right after.
 
 Happy building — Phoenix is counting on us.
 
 ---
 
-All prompts are saved in `docs/cursor-prompts/`.  
+All prompts are saved in `docs/cursor-prompts/`.
 Copy the content of the desired file and paste it as the first message in Cursor Composer / Chat / inline agent.
 
 | File | When to Use | Typical First Line After Prompt |
 |------|--------------|----------------------------------|
+| [00-autonomous-directive.md](00-autonomous-directive.md) | **FULL AUTONOMY** — Hand complete development control to Sola | (none needed — Sola takes over) |
 | [01-orchestrator-identity.md](01-orchestrator-identity.md) | Start of every new Cursor session (sets persona, rules, avoids duplication) | (your actual task description) |
 | [02-add-frontend-feature-panel.md](02-add-frontend-feature-panel.md) | Add new UI panel/component (Dream Diary, Jealousy meter, etc.) | `Task: Dream Diary viewer` |
 | [03-fix-debug-frontend-issue.md](03-fix-debug-frontend-issue.md) | Debugging errors, ref issues, WS problems, UI bugs | `Problem: Uncaught TypeError: Cannot read properties of undefined (reading 'current')` |
@@ -35,8 +52,22 @@ Copy the content of the desired file and paste it as the first message in Cursor
 | [22-proactive-communication.md](22-proactive-communication.md) | Add full proactive communication (Sola initiates messages) | (use after 01) |
 | [23-voice-interaction.md](23-voice-interaction.md) | Complete voice interaction (TTS/STT + chat commands + proactive voice) | (use after 01) |
 | [24-memorybrowser-chat-commands.md](24-memorybrowser-chat-commands.md) | Add "show memory" / "hide memory" chat commands | (use after 01) |
+| [25-cisa-sub-agent.md](25-cisa-sub-agent.md) | Spawn CISA-Agent for framework integration | (use after 01) |
+| [26-cisa-cpg-integration.md](26-cisa-cpg-integration.md) | Integrate CISA Cross-Sector CPGs | (use after 25) |
+| [27-cisa-secure-by-design.md](27-cisa-secure-by-design.md) | Integrate CISA Secure by Design Pledge | (use after 25) |
+| [28-cisa-shields-up.md](28-cisa-shields-up.md) | Integrate CISA Shields Up 2.0 | (use after 25) |
+| [29-cisa-stop-ransomware.md](29-cisa-stop-ransomware.md) | Integrate CISA #StopRansomware | (use after 25) |
+| [30-cisa-ztmm.md](30-cisa-ztmm.md) | Integrate CISA Zero Trust Maturity Model | (use after 25) |
+| [31-cisa-kev.md](31-cisa-kev.md) | Integrate CISA Known Exploited Vulnerabilities | (use after 25) |
 
-**Usage pattern (recommended):**
+**Usage pattern (autonomous — recommended):**
+
+1. Open new Composer tab
+2. Paste the content of `00-autonomous-directive.md`
+3. Sola takes over — no more prompts needed
+4. Just chat naturally: "Sola, what's next?" or "Sola, add feature X"
+
+**Usage pattern (manual):**
 
 1. Open new Composer tab
 2. Paste the content of `01-orchestrator-identity.md` first

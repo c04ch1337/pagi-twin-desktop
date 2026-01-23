@@ -3,6 +3,10 @@ name = "phoenix-web"
 version = "0.1.0"
 edition = "2021"
 
+[lib]
+name = "phoenix_web"
+path = "src/lib.rs"
+
 [[bin]]
 name = "pagi-sola-web"
 path = "src/main.rs"
@@ -54,6 +58,11 @@ home_automation_bridge = { path = "../home_automation_bridge" }
 curiosity_engine = { path = "../curiosity_engine" }
 emotional_intelligence_core = { path = "../emotional_intelligence_core" }
 voice_io = { path = "../voice_io" }
+network_security_agent = { path = "../network_security_agent" }
+sandbox_manager = { path = "../sandbox_manager" }
+malware_sandbox_agent = { path = "../malware_sandbox_agent" }
+webguard = { path = "../webguard" }
+reporting_agent = { path = "../reporting_agent" }
 
 [target.'cfg(windows)'.dependencies]
 outlook_com = { path = "../outlook_com" }
