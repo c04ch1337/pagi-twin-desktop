@@ -73,6 +73,10 @@ use voice_io::{VoiceIO, VoiceParams};
 // ToolAgent and ToolAgentConfig are used in handle_unrestricted_execution
 // but imported there via use statement
 
+// Profile Generator - AI-generated dating profiles
+mod profile_generator;
+use profile_generator::{ProfileGenerator, ProfileGenerationRequest};
+
 fn env_nonempty(key: &str) -> Option<String> {
     std::env::var(key)
         .ok()
@@ -154,6 +158,7 @@ mod proactive;
 mod professional_agents;
 mod reporting_handler;
 mod swarm_delegation;
+mod trust_api;
 mod websocket;
 use google::{GoogleInitError, GoogleManager};
 use handlers::{build_mode_specific_prompt, detect_intimacy_intent, generate_soft_refusal};
@@ -234,6 +239,10 @@ struct AppState {
     // Hidden Swarm Coordination (Sola remains single visible face)
     swarm_bus: Arc<InternalSwarmBus>,
     swarm_interface: Arc<Mutex<SolaSwarmInterface>>,
+    // Profile Generator - AI-generated dating profiles
+    profile_generator: Arc<ProfileGenerator>,
+    // Browser consent for porn site access (gated)
+    browser_consent: Arc<Mutex<HashMap<String, bool>>>,
     version: String,
     dotenv_path: Option<String>,
     dotenv_error: Option<String>,
@@ -5693,6 +5702,121 @@ async fn api_swarm_alerts(state: web::Data<AppState>) -> impl Responder {
 // End Hidden Swarm Coordination API Handlers
 // ============================================================================
 
+// ============================================================================
+// Profile Generator API Handlers (Dating/Swipe System)
+// ============================================================================
+
+/// Generate a new AI profile with photos
+async fn api_profiles_generate(
+    state: web::Data<AppState>,
+    body: web::Json<ProfileGenerationRequest>,
+) -> impl Responder {
+    match state.profile_generator.generate_profile(body.into_inner()).await {
+        Ok(profile) => HttpResponse::Ok().json(json!({
+            "success": true,
+            "profile": profile
+        })),
+        Err(e) => HttpResponse::InternalServerError().json(json!({
+            "error": format!("Failed to generate profile: {}", e)
+        }))
+    }
+}
+
+/// Get all generated profiles
+async fn api_profiles_list(state: web::Data<AppState>) -> impl Responder {
+    let profiles = state.profile_generator.get_profiles().await;
+    HttpResponse::Ok().json(json!({
+        "profiles": profiles,
+        "count": profiles.len()
+    }))
+}
+
+/// Get a specific profile by ID
+async fn api_profiles_get(
+    state: web::Data<AppState>,
+    path: web::Path<String>,
+) -> impl Responder {
+    let profile_id = path.into_inner();
+    match state.profile_generator.get_profile(&profile_id).await {
+        Some(profile) => HttpResponse::Ok().json(profile),
+        None => HttpResponse::NotFound().json(json!({
+            "error": "Profile not found"
+        }))
+    }
+}
+
+/// Delete a profile
+async fn api_profiles_delete(
+    state: web::Data<AppState>,
+    path: web::Path<String>,
+) -> impl Responder {
+    let profile_id = path.into_inner();
+    if state.profile_generator.delete_profile(&profile_id).await {
+        HttpResponse::Ok().json(json!({
+            "success": true,
+            "message": "Profile deleted"
+        }))
+    } else {
+        HttpResponse::NotFound().json(json!({
+            "error": "Profile not found"
+        }))
+    }
+}
+
+#[derive(Debug, Deserialize)]
+struct BrowserAccessRequest {
+    url: String,
+    consent: bool,
+}
+
+/// Access porn site via browser (gated by explicit consent)
+async fn api_browser_access_porn(
+    state: web::Data<AppState>,
+    body: web::Json<BrowserAccessRequest>,
+) -> impl Responder {
+    let req = body.into_inner();
+    
+    // Check consent
+    if !req.consent {
+        return HttpResponse::Forbidden().json(json!({
+            "error": "Explicit consent required for porn site access",
+            "consent_required": true
+        }));
+    }
+
+    // Store consent
+    let mut consent_map = state.browser_consent.lock().await;
+    consent_map.insert(req.url.clone(), true);
+
+    // Use browser control to navigate (if available)
+    // For now, return success with instructions
+    HttpResponse::Ok().json(json!({
+        "success": true,
+        "message": "Consent granted. Use browser control to navigate.",
+        "url": req.url,
+        "instructions": "Use 'system browser navigate <url>' command to access the site"
+    }))
+}
+
+/// Check if consent is granted for a URL
+async fn api_browser_check_consent(
+    state: web::Data<AppState>,
+    body: web::Json<serde_json::Value>,
+) -> impl Responder {
+    let url = body.get("url").and_then(|v| v.as_str()).unwrap_or("");
+    let consent_map = state.browser_consent.lock().await;
+    let has_consent = consent_map.get(url).copied().unwrap_or(false);
+
+    HttpResponse::Ok().json(json!({
+        "url": url,
+        "consent_granted": has_consent
+    }))
+}
+
+// ============================================================================
+// End Profile Generator API Handlers
+// ============================================================================
+
 async fn api_outlook_create_appointment(
     state: web::Data<AppState>,
     body: web::Json<OutlookCreateAppointmentRequest>,
@@ -6446,6 +6570,8 @@ async fn main() -> std::io::Result<()> {
         proactive_tx,
         swarm_bus,
         swarm_interface,
+        profile_generator: Arc::new(ProfileGenerator::new()),
+        browser_consent: Arc::new(Mutex::new(HashMap::new())),
         version: env!("CARGO_PKG_VERSION").to_string(),
         dotenv_path: dotenv_path.map(|p| p.display().to_string()),
         dotenv_error,
@@ -6831,6 +6957,36 @@ async fn main() -> std::io::Result<()> {
                                     .route(web::get().to(api_swarm_alerts)),
                             ),
                     )
+                    // Profile Generator (Dating/Swipe System)
+                    .service(
+                        web::scope("/profiles")
+                            .service(
+                                web::resource("/generate")
+                                    .route(web::post().to(api_profiles_generate)),
+                            )
+                            .service(
+                                web::resource("/list")
+                                    .route(web::get().to(api_profiles_list)),
+                            )
+                            .service(
+                                web::resource("/{id}")
+                                    .route(web::get().to(api_profiles_get))
+                                    .route(web::delete().to(api_profiles_delete)),
+                            ),
+                    )
+                    // Browser porn access (gated)
+                    .service(
+                        web::scope("/browser")
+                            .service(
+                                web::resource("/access-porn")
+                                    .route(web::post().to(api_browser_access_porn)),
+                            )
+                            .service(
+                                web::resource("/check-consent")
+                                    .route(web::post().to(api_browser_check_consent)),
+                            ),
+                    )
+                    .configure(trust_api::configure_routes)
                     .default_service(web::route().to(api_not_found)),
             )
     })

@@ -31,6 +31,7 @@ pub mod goals;
 pub mod shared_memory;
 pub mod template;
 pub mod voice_modulation;
+pub mod trust_scoring;
 
 pub use ai_personality::{AIPersonality, CommunicationStyle, LoveLanguage, Mood};
 pub use attachment::{AttachmentEvolution, AttachmentProfile, AttachmentStyle};

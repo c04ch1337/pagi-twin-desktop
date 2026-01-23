@@ -128,87 +128,214 @@ tauri dev
 
 ## Icon Generation
 
-Sola AGI uses a comprehensive icon set for all platforms. Icons are already generated and located in `phoenix-desktop-tauri/src-tauri/icons/`.
+Sola AGI uses a comprehensive icon set for all platforms. Icons are generated from a 1024x1024 PNG source and located in `phoenix-desktop-tauri/src-tauri/icons/`.
 
 ### Icon Requirements
 
-- **Source:** 1024x1024 PNG with transparency
-- **Format:** PNG, SVG (source)
+- **Source:** 1024x1024 PNG with transparency (RGBA)
+- **Format:** PNG (source), SVG (optional vector source)
 - **Output:** Platform-specific formats (ICO, ICNS, PNG)
+- **Branding:** "Sola AGI" with flame/phoenix theme
 
-### Regenerate Icons (Optional)
+### Quick Start: Generate Icons
 
-If you need to regenerate icons with a custom logo:
+**Step 1: Verify or Create Source Icon**
+
+```bash
+cd phoenix-desktop-tauri
+
+# Check if icon.png exists
+npm run icon:verify
+
+# If missing, generate placeholder icon
+npm run icon:generate
+```
+
+**Step 2: Generate All Platform Formats**
+
+```bash
+# Generate all icon formats from icon.png
+npm run icon
+
+# This runs: cargo tauri icon src-tauri/icons/icon.png
+```
+
+**Step 3: Verify Generated Icons**
+
+```bash
+# Check generated files
+ls src-tauri/icons/
+# Should see: icon.ico, icon.icns, 32x32.png, 128x128.png, etc.
+```
+
+### Detailed Icon Generation
 
 #### Option 1: Automatic Generation (Recommended)
 
 ```bash
 cd phoenix-desktop-tauri
 
-# Generate placeholder icon
+# Generate placeholder icon + all formats in one command
 npm run icon:generate
 
-# OR use existing icon.png
-npm run icon
+# This will:
+# 1. Run generate-placeholder-icon.py to create 1024x1024 icon.png
+# 2. Run cargo tauri icon to generate all platform formats
 ```
 
-#### Option 2: Manual Generation
+**Requirements:**
+- Python 3 with Pillow: `pip install Pillow`
+- Tauri CLI: `npm install -g @tauri-apps/cli`
+
+#### Option 2: Use Custom Icon
+
+If you have a custom 1024x1024 PNG icon:
 
 ```bash
 cd phoenix-desktop-tauri
 
-# 1. Generate placeholder (if needed)
-python generate-placeholder-icon.py
-
-# 2. OR copy your custom icon
+# 1. Copy your custom icon
 cp /path/to/your/icon.png src-tauri/icons/icon.png
 
-# 3. Generate all formats
+# 2. Generate all formats
+npm run icon
+# OR
 cargo tauri icon src-tauri/icons/icon.png
 ```
 
-#### Option 3: Platform Scripts
+#### Option 3: Manual Generation
 
 **Windows (PowerShell):**
 ```powershell
 cd phoenix-desktop-tauri
-.\generate-icons.ps1
+
+# Generate placeholder
+python generate-placeholder-icon.py
+
+# Generate all formats
+cargo tauri icon src-tauri/icons/icon.png
 ```
 
 **Linux/macOS (Bash):**
 ```bash
 cd phoenix-desktop-tauri
-./generate-icons.sh
+
+# Generate placeholder
+python3 generate-placeholder-icon.py
+
+# Generate all formats
+cargo tauri icon src-tauri/icons/icon.png
 ```
 
 ### Generated Icon Formats
 
-After generation, you'll have:
+After running `cargo tauri icon`, you'll have:
 
 **Windows:**
-- `icon.ico` (16x16, 32x32, 48x48, 64x64, 128x128, 256x256)
-- `Square*.png` (Windows Store formats)
+- `icon.ico` - Multi-resolution ICO (16x16, 32x32, 48x48, 64x64, 128x128, 256x256)
+- `Square30x30Logo.png` - Windows Store 30x30
+- `Square44x44Logo.png` - Windows Store 44x44
+- `Square71x71Logo.png` - Windows Store 71x71
+- `Square89x89Logo.png` - Windows Store 89x89
+- `Square107x107Logo.png` - Windows Store 107x107
+- `Square142x142Logo.png` - Windows Store 142x142
+- `Square150x150Logo.png` - Windows Store 150x150
+- `Square284x284Logo.png` - Windows Store 284x284
+- `Square310x310Logo.png` - Windows Store 310x310
+- `StoreLogo.png` - Windows Store logo
 
 **macOS:**
-- `icon.icns` (16x16 to 1024x1024, all densities)
+- `icon.icns` - Multi-resolution ICNS (16x16 to 1024x1024, all @2x densities)
 
 **Linux:**
-- `32x32.png`
-- `128x128.png`
-- `128x128@2x.png`
-- `256x256.png` (optional)
+- `32x32.png` - Standard 32x32 icon
+- `128x128.png` - Standard 128x128 icon
+- `128x128@2x.png` - High-DPI 256x256 icon
 
-**Mobile (Future):**
-- `android/` - Android adaptive icons
-- `ios/` - iOS app icons
+**Mobile (Future Support):**
+- `android/` - Android adaptive icons (all densities)
+- `ios/` - iOS app icons (all sizes)
+
+### Icon Configuration
+
+Icons are configured in `src-tauri/tauri.conf.json`:
+
+```json
+{
+  "bundle": {
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ]
+  }
+}
+```
+
+**Tray Icon:** Configured in `src-tauri/src/main.rs`:
+- Tooltip: "Sola AGI - v1.0.1"
+- Uses same icon set
 
 ### Icon Design Guidelines
 
-1. **Simplicity:** Clear, recognizable at small sizes
+1. **Simplicity:** Clear, recognizable at small sizes (16x16 minimum)
 2. **Contrast:** Works on light and dark backgrounds
-3. **Transparency:** Use alpha channel for rounded corners
+3. **Transparency:** Use alpha channel for rounded corners/shapes
 4. **Branding:** Consistent with Sola AGI flame/phoenix theme
-5. **Testing:** Test at 16x16, 32x32, 48x48 sizes
+5. **Testing:** Test at 16x16, 32x32, 48x48 sizes before release
+6. **Colors:** Purple (#6B46C1), Orange (#FF6B35), Yellow (#FFD23F) theme
+
+### Troubleshooting Icon Generation
+
+**"icon.png not found" error:**
+```bash
+# Generate placeholder first
+npm run icon:generate
+```
+
+**"Pillow not installed" error:**
+```bash
+pip install Pillow
+# OR
+pip3 install Pillow
+```
+
+**"Tauri CLI not found" error:**
+```bash
+npm install -g @tauri-apps/cli
+```
+
+**Icons not showing in Windows:**
+- Ensure `icon.ico` contains multiple resolutions
+- Clear Windows icon cache: `ie4uinit.exe -show`
+- Rebuild application: `npm run build`
+
+**Icons not showing in macOS:**
+- Ensure `icon.icns` is properly formatted
+- Clear icon cache: `sudo rm -rf /Library/Caches/com.apple.iconservices.store`
+- Rebuild application: `npm run build`
+
+**Icons not showing in Linux:**
+- Ensure PNG files are in correct location
+- Update desktop database: `update-desktop-database ~/.local/share/applications`
+- Rebuild application: `npm run build`
+
+### Icon Verification Checklist
+
+Before building for release:
+
+- [ ] `src-tauri/icons/icon.png` exists (1024x1024)
+- [ ] `src-tauri/icons/icon.ico` exists (Windows)
+- [ ] `src-tauri/icons/icon.icns` exists (macOS)
+- [ ] `src-tauri/icons/32x32.png` exists (Linux)
+- [ ] `src-tauri/icons/128x128.png` exists (Linux)
+- [ ] `src-tauri/icons/128x128@2x.png` exists (Linux)
+- [ ] `tauri.conf.json` references correct icon paths
+- [ ] Tray icon tooltip set to "Sola AGI - v1.0.1"
+- [ ] Test icons display correctly in dev mode: `npm run dev`
+- [ ] Test icons display correctly in built app: `npm run build`
 
 ---
 

@@ -13,6 +13,7 @@ rand = "0.8"
 
 # Zodiac personality archetypes (kept as a separate crate).
 horoscope_archetypes = { path = "../../horoscope_archetypes" }
+zodiac_thresholds = { path = "../../zodiac_thresholds" }
 
 llm_orchestrator = { path = "../../llm_orchestrator" }
 vital_organ_vaults = { path = "../../vital_organ_vaults" }

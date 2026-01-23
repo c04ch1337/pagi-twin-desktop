@@ -12,6 +12,7 @@ import DreamsPanel from './components/DreamsPanel';
 import OnboardingMessage from './components/OnboardingMessage';
 import WebGuardReportPanel, { WebGuardReportData } from './components/WebGuardReportPanel';
 import ReportsPanel, { VulnerabilityReport } from './components/ReportsPanel';
+import ProfilesSwipePanel from './components/ProfilesSwipePanel';
 import { sendNotification } from './services/notificationService';
 import VoiceService from './services/voiceService';
 import analyticsService from './services/analyticsService';
@@ -242,6 +243,9 @@ const App: React.FC = () => {
   const [swarmModeVisible, setSwarmModeVisible] = useState(false);
   const [swarmStatus, setSwarmStatus] = useState<any>(null);
 
+  // Profiles panel state (hidden by default, toggle via "show profiles")
+  const [showProfilesPanel, setShowProfilesPanel] = useState(false);
+
   type ChatCommandResult =
     | {
       kind: 'handled';
@@ -285,6 +289,16 @@ const App: React.FC = () => {
       return { kind: 'handled', localAssistantMessage: 'Reports panel hidden.' };
     }
 
+    // Profiles panel commands
+    if (lower === 'show profiles' || lower === 'profiles panel' || lower === 'open profiles' || lower === 'swipe') {
+      setShowProfilesPanel(true);
+      return { kind: 'handled', localAssistantMessage: '💕 Profiles panel opened. Swipe to find matches!' };
+    }
+    if (lower === 'hide profiles' || lower === 'close profiles') {
+      setShowProfilesPanel(false);
+      return { kind: 'handled', localAssistantMessage: 'Profiles panel hidden.' };
+    }
+
     // Help command system
     if (lower === 'help' || lower === '?' || lower === 'commands') {
       const phoenixName = envConfig.PHOENIX_CUSTOM_NAME || envConfig.PHOENIX_NAME || 'Sola';
@@ -299,10 +313,26 @@ Welcome, ${userName}! ${phoenixName} is your personal AGI assistant with advance
 ## 🎯 Quick Start
 
 **First time here?** Try these commands:
-- \`status\` - Check system status
-- \`voice on\` - Enable voice output
-- \`show dreams\` - Open emotional processing panel
-- \`help voice\` - Learn about voice features
+
+\`\`\`
+status                    # Check system status
+voice on                  # Enable voice output
+show dreams               # Open emotional processing panel
+show memory               # View memory browser
+help voice                # Learn about voice features
+\`\`\`
+
+**Example Session:**
+\`\`\`
+${userName}: voice on
+${phoenixName}: Voice output enabled! 🎙️
+
+${userName}: speak hello world
+${phoenixName}: [Speaks "hello world"]
+
+${userName}: show dreams
+${phoenixName}: Dreams panel opened. What would you like to explore? 🌙
+\`\`\`
 
 ---
 
@@ -316,6 +346,14 @@ Control voice input/output and speech features.
 - \`listen\` - Start voice input (dictation mode)
 - \`speak <text>\` - Test TTS with custom text
 - \`reset voice\` - Reset voice settings to defaults
+
+**Examples:**
+\`\`\`
+voice on
+speak Welcome to ${phoenixName} AGI
+listen                    # Start dictation mode
+reset voice               # Reset to defaults
+\`\`\`
 
 **Quick Tip:** Voice output adapts to emotional state and affection levels!
 
@@ -336,6 +374,14 @@ Access ${phoenixName}'s layered memory system.
 - **Mind** - Thoughts, ideas, semantic knowledge
 - **Body** - Physical world data, screenshots, system info
 
+**Examples:**
+\`\`\`
+show memory
+memory search artificial intelligence
+memory search my favorite color
+clear chat
+\`\`\`
+
 📖 **Learn more:** \`help memory\`
 
 ---
@@ -351,6 +397,16 @@ Explore emotional healing and creative dream sessions.
 - \`replay dream <id>\` - Replay a recorded dream
 
 **Dream Types:** Lucid, Shared, Healing, Recorded
+
+**Examples:**
+\`\`\`
+show dreams
+lucid dream
+dream with me
+heal anxiety
+heal sadness
+replay dream 12345
+\`\`\`
 
 📖 **Learn more:** \`help dreams\`
 
@@ -369,6 +425,16 @@ Control your local browser via Chrome DevTools Protocol.
 
 **Setup Required:** Launch Chrome with \`--remote-debugging-port=9222\`
 
+**Examples:**
+\`\`\`
+use chrome for browsing
+system grant                    # Grant browser control consent
+system browser navigate https://duckduckgo.com
+system browser type input[name="q"] artificial intelligence
+system browser click button[type="submit"]
+system browser screenshot
+\`\`\`
+
 📖 **Learn more:** \`help browser\`
 
 ---
@@ -385,7 +451,39 @@ Spawn specialized AI agents and import external repositories.
 
 **Use Cases:** Research, coding, analysis, parallel tasks
 
+**Examples:**
+\`\`\`
+agent spawn Research quantum computing applications
+agents list
+agent abc123 What are the latest developments?
+ecosystem import https://github.com/user/repo
+ecosystem status
+\`\`\`
+
 📖 **Learn more:** \`help agents\` or \`help ecosystem\`
+
+---
+
+### 🛡️ WebGuard Security Scanning
+Scan websites for security vulnerabilities.
+
+**Commands:**
+- \`webguard scan <url>\` - Run passive security scan
+- \`webguard test-xss <url> <param>\` - Test for XSS vulnerabilities
+- \`webguard test-sqli <url> <param>\` - Test for SQL injection
+- \`webguard report last\` - View last scan report
+- \`show webguard\` - Open WebGuard panel
+
+**Examples:**
+\`\`\`
+webguard scan https://example.com
+webguard test-xss https://example.com/search q
+webguard test-sqli https://example.com/product id
+webguard report last
+show webguard
+\`\`\`
+
+📖 **Learn more:** \`help webguard\`
 
 ---
 
@@ -396,6 +494,11 @@ ${phoenixName} can reach out proactively based on context and time.
 - \`proactive status\` - Check proactive communication status
 
 **Configuration:** Edit backend .env (\`PROACTIVE_ENABLED=true\`)
+
+**Examples:**
+\`\`\`
+proactive status
+\`\`\`
 
 📖 **Learn more:** \`help proactive\`
 
@@ -410,6 +513,13 @@ Customize your interface appearance.
 
 **Customization:** Access Settings panel for branding, colors, and fonts
 
+**Examples:**
+\`\`\`
+theme dark
+theme light
+notify test
+\`\`\`
+
 ---
 
 ### ⚙️ System & Advanced
@@ -421,15 +531,87 @@ System management and advanced features.
 - \`system grant\` / \`system revoke\` - Manage WebSocket consent
 - \`ping\` - Test backend connection
 
+**Examples:**
+\`\`\`
+status
+status all
+system grant              # Grant Tier-2 WebSocket consent
+system revoke             # Revoke consent
+ping
+\`\`\`
+
 ---
 
 ## 🎓 Best Practices
 
 1. **Voice First:** Enable voice output for a more natural experience
+   \`\`\`
+   voice on
+   \`\`\`
+
 2. **Memory Browser:** Keep it open to see ${phoenixName}'s thought process
+   \`\`\`
+   show memory
+   \`\`\`
+
 3. **Dreams Panel:** Use for emotional processing and creative exploration
+   \`\`\`
+   show dreams
+   lucid dream
+   \`\`\`
+
 4. **Browser Control:** Requires consent (\`system grant\`) for security
+   \`\`\`
+   system grant
+   use chrome for browsing
+   \`\`\`
+
 5. **Agents:** Spawn agents for parallel tasks and specialized work
+   \`\`\`
+   agent spawn Analyze this codebase for security issues
+   \`\`\`
+
+6. **Security Scanning:** Always test sites you own or have permission to test
+   \`\`\`
+   webguard scan https://mysite.com
+   \`\`\`
+
+7. **Use 'sandbox:' prefix** for sensitive file operations
+   \`\`\`
+   sandbox:read sensitive-file.txt
+   \`\`\`
+
+---
+
+## 🔧 Troubleshooting
+
+### Common Issues
+
+**Voice not working?**
+- Check TTS engine configuration in backend .env
+- Try \`reset voice\` to restore defaults
+- See \`help voice\` for detailed troubleshooting
+
+**Browser control failing?**
+- Verify Chrome is running with \`--remote-debugging-port=9222\`
+- Grant consent with \`system grant\`
+- Check connection with \`system browser status\`
+- See \`help browser\` for setup guide
+
+**Memory search not finding results?**
+- Try different query keywords
+- Check if MemoryBrowser panel is open
+- Verify memory vaults are populated
+
+**Agent not responding?**
+- Check agent status with \`agents list\`
+- Verify agent ID is correct
+- See \`help agents\` for agent management
+
+**WebGuard scan errors?**
+- Verify URL format (must start with http:// or https://)
+- Check network connectivity
+- See \`help webguard\` for detailed troubleshooting
 
 ---
 
@@ -450,7 +632,17 @@ Type \`help <topic>\` for comprehensive guides:
 
 ---
 
-**Need more help?** Ask ${phoenixName} directly: *"How do I use voice commands?"*
+## 💡 Quick Tips
+
+- **Use quotes for multi-word commands:** \`speak "hello world"\`
+- **Chain commands:** Enable voice, then speak: \`voice on\` then \`speak hello\`
+- **Panel shortcuts:** Click icons in chat footer to toggle panels
+- **Command history:** Use arrow keys to navigate previous commands
+- **Ask ${phoenixName} directly:** "How do I use browser control?"
+
+---
+
+**Need more help?** Ask ${phoenixName} directly: *"How do I use voice commands?"* or type \`help <topic>\` for detailed guides.
       `.trim();
       return { kind: 'handled', localAssistantMessage: helpMessage };
     }
@@ -655,20 +847,50 @@ Use CSS selectors to target elements:
 
 ### Basic Navigation
 \`\`\`
+# Navigate to a website
 system browser navigate https://duckduckgo.com
+
+# Take a screenshot
 system browser screenshot
+
+# Check connection status
+system browser status
 \`\`\`
 
 ### Search Automation
 \`\`\`
+# Complete search workflow
 system browser navigate https://duckduckgo.com
+system browser wait input[name="q"] 5000
 system browser type input[name="q"] artificial intelligence
 system browser click button[type="submit"]
 system browser wait .results 5000
 system browser screenshot
 \`\`\`
 
+### Form Filling
+\`\`\`
+# Fill out a contact form
+system browser navigate https://example.com/contact
+system browser type input[name="name"] John Doe
+system browser type input[name="email"] john@example.com
+system browser type textarea[name="message"] Hello, this is a test message
+system browser click button[type="submit"]
+system browser wait .success-message 10000
+\`\`\`
+
 ### Login Automation
+\`\`\`
+# Automated login
+system browser navigate https://example.com/login
+system browser type input[name="username"] myuser
+system browser type input[name="password"] mypass
+system browser click button[type="submit"]
+system browser wait .dashboard 10000
+system browser screenshot
+\`\`\`
+
+**Or use the shortcut:**
 \`\`\`
 system browser login https://example.com/login myuser mypass
 system browser wait .dashboard 10000
@@ -676,7 +898,28 @@ system browser wait .dashboard 10000
 
 ### Data Scraping
 \`\`\`
-system browser scrape https://example.com .article-title
+# Scrape article titles
+system browser navigate https://example.com/articles
+system browser scrape https://example.com/articles .article-title
+
+# Scrape multiple elements
+system browser scrape https://example.com/products .product-name
+system browser scrape https://example.com/products .product-price
+\`\`\`
+
+### Advanced Workflow
+\`\`\`
+# Multi-step automation
+system browser navigate https://example.com
+system browser click .menu-button
+system browser wait .dropdown-menu 3000
+system browser click .dropdown-menu a[href="/products"]
+system browser wait .product-list 5000
+system browser type .search-input laptop
+system browser click .search-button
+system browser wait .search-results 5000
+system browser screenshot
+system browser scrape https://example.com/search .result-title
 \`\`\`
 
 ---
@@ -684,19 +927,63 @@ system browser scrape https://example.com .article-title
 ## Tips & Best Practices
 
 1. **Security:** Browser control requires Tier-2 consent (\`system grant\`)
+   \`\`\`
+   system grant
+   \`\`\`
+
 2. **Selectors:** Use specific selectors to avoid ambiguity
+   - ✅ Good: \`input[name="q"]\`, \`#login-button\`, \`.submit-btn\`
+   - ❌ Bad: \`input\`, \`button\`, \`div\`
+
 3. **Screenshots:** Automatically saved and displayed in Browser panel
+   \`\`\`
+   system browser screenshot              # Full page
+   system browser screenshot .content   # Specific element
+   \`\`\`
+
 4. **Waiting:** Use \`wait\` command for dynamic content
+   \`\`\`
+   system browser wait .results 5000     # Wait up to 5 seconds
+   system browser wait #login-form 10000 # Wait up to 10 seconds
+   \`\`\`
+
 5. **Debugging:** Check \`system browser status\` if commands fail
+   \`\`\`
+   system browser status
+   \`\`\`
+
+6. **Error Handling:** Always wait for elements before interacting
+   \`\`\`
+   system browser navigate https://example.com
+   system browser wait .main-content 5000
+   system browser click .button
+   \`\`\`
+
+7. **Chrome DevTools:** Use browser DevTools to find selectors
+   - Right-click element → Inspect
+   - Copy CSS selector
+   - Test selector in console: \`document.querySelector('.your-selector')\`
 
 ---
 
 ## Supported Browsers
 
-- ✅ **Chrome** - Fully supported
+- ✅ **Chrome** - Fully supported (recommended)
 - ✅ **Edge** - Fully supported (Chromium-based)
 - ⚠️ **Firefox** - Partial support (experimental)
 - ❌ **Safari** - Not supported
+
+**Launch Chrome with debugging:**
+\`\`\`bash
+# Windows
+chrome.exe --remote-debugging-port=9222
+
+# macOS
+/Applications/Google\\ Chrome.app/Contents/MacOS/Google\\ Chrome --remote-debugging-port=9222
+
+# Linux
+google-chrome --remote-debugging-port=9222
+\`\`\`
 
 ---
 
@@ -705,12 +992,40 @@ system browser scrape https://example.com .article-title
 Edit backend \`.env\` file:
 
 \`\`\`bash
+# Browser type
 BROWSER_TYPE=chrome
 # Options: chrome, edge, firefox
 
+# Debugging port
 BROWSER_DEBUG_PORT=9222
-# Default debugging port
+# Default: 9222
+
+# Timeout settings
+BROWSER_TIMEOUT=30000
+# Default: 30000ms (30 seconds)
 \`\`\`
+
+---
+
+## CSS Selectors Reference
+
+| Selector Type | Example | Description |
+|--------------|---------|-------------|
+| ID | \`#login-button\` | Element with id="login-button" |
+| Class | \`.search-input\` | Elements with class="search-input" |
+| Tag | \`button\` | All button elements |
+| Attribute | \`input[name="q"]\` | Input with name="q" |
+| Attribute | \`button[type="submit"]\` | Button with type="submit" |
+| Combined | \`form .submit-btn\` | .submit-btn inside form |
+| Descendant | \`div > button\` | Direct child button |
+| Pseudo-class | \`button:hover\` | Button on hover (not supported) |
+| Multiple | \`.btn, .button\` | Elements with either class |
+
+**Finding Selectors:**
+1. Open browser DevTools (F12)
+2. Right-click element → Inspect
+3. Right-click element in DevTools → Copy → Copy selector
+4. Test in console: \`document.querySelector('your-selector')\`
 
 ---
 
@@ -718,24 +1033,94 @@ BROWSER_DEBUG_PORT=9222
 
 ![Browser Panel](docs/screenshots/browser-panel.png)
 ![Browser Automation Example](docs/screenshots/browser-automation.png)
+![Browser Screenshot](docs/screenshots/browser-screenshot.png)
 
 ---
 
 ## Troubleshooting
 
-**Connection failed?**
-- Verify Chrome is running with \`--remote-debugging-port=9222\`
-- Check firewall settings
-- Try \`system browser status\`
+### Connection Issues
 
-**Element not found?**
+**"Connection failed" or "Browser not connected"?**
+- Verify Chrome is running with \`--remote-debugging-port=9222\`
+- Check if port 9222 is accessible: \`netstat -an | grep 9222\`
+- Try \`system browser status\` to check connection
+- Restart Chrome with debugging flag
+- Check firewall settings (port 9222)
+
+**"Connection timeout"?**
+- Increase timeout in backend .env: \`BROWSER_TIMEOUT=60000\`
+- Check network connectivity
+- Verify Chrome is responsive
+
+### Element Selection Issues
+
+**"Element not found" error?**
 - Verify CSS selector is correct
 - Use browser DevTools to test selectors
 - Try \`system browser wait <selector>\` first
+- Check if element is in iframe (iframes not fully supported)
+- Verify element is visible (hidden elements may not be clickable)
 
-**Permission denied?**
+**"Multiple elements found" warning?**
+- Use more specific selector
+- Add parent context: \`form .submit-btn\` instead of \`.submit-btn\`
+- Use attribute selectors: \`button[type="submit"]\`
+
+**"Element not clickable" error?**
+- Element may be covered by another element
+- Element may be outside viewport (scroll first)
+- Element may be disabled
+- Try waiting longer: \`system browser wait <selector> 10000\`
+
+### Permission Issues
+
+**"Permission denied" or "Consent required"?**
 - Grant consent with \`system grant\`
 - Check WebSocket connection status
+- Verify Tier-2 WebSocket commands are enabled
+- Restart backend if needed
+
+### Performance Issues
+
+**Commands taking too long?**
+- Increase timeout: \`system browser wait <selector> 10000\`
+- Check network speed
+- Reduce number of operations
+- Use screenshots sparingly (they're large)
+
+**Browser becomes unresponsive?**
+- Check Chrome task manager (Shift+Esc)
+- Close unnecessary tabs
+- Restart Chrome with debugging
+- Check system resources
+
+---
+
+## Advanced Usage
+
+### Chaining Commands
+\`\`\`
+# Navigate, wait, interact, screenshot
+system browser navigate https://example.com && \\
+system browser wait .content 5000 && \\
+system browser click .button && \\
+system browser screenshot
+\`\`\`
+
+### Conditional Logic
+\`\`\`
+# Wait for element, then interact
+system browser wait .modal 5000
+system browser click .close-button
+\`\`\`
+
+### Error Recovery
+\`\`\`
+# Try to click, if fails, take screenshot for debugging
+system browser click .button
+system browser screenshot  # Debug if click failed
+\`\`\`
 
 ---
 
@@ -1710,18 +2095,84 @@ This tests the \`ip\` parameter for command injection vulnerabilities.
 
 ## Examples
 
+### Passive Scanning
 \`\`\`
+# Basic passive scan
 webguard scan https://example.com
+
+# Alternative command
 webguard passive https://mysite.com
+
+# View last scan report
 webguard report last
+\`\`\`
+
+### XSS Testing
+\`\`\`
+# Test search parameter for XSS
 webguard test-xss https://example.com/search q
+
+# Test comment form
+webguard test-xss https://example.com/comments comment
+
+# View XSS report
 webguard xss-report last
+\`\`\`
+
+### SQL Injection Testing
+\`\`\`
+# Test product ID parameter
 webguard test-sqli https://example.com/product id
+
+# Test user ID parameter
+webguard test-sqli https://example.com/profile user_id
+
+# View SQLi report
 webguard sqli-report last
+\`\`\`
+
+### Open Redirect Testing
+\`\`\`
+# Test redirect URL parameter
 webguard test-redirect https://example.com/redirect url
+
+# Test return URL parameter
+webguard test-redirect https://example.com/login return_url
+
+# View redirect report
 webguard redirect-report last
+\`\`\`
+
+### Command Injection Testing
+\`\`\`
+# Test ping IP parameter
 webguard test-cmdinj https://example.com/ping ip
+
+# Test command parameter
+webguard test-cmdinj https://example.com/execute cmd
+
+# View command injection report
 webguard cmdinj-report last
+\`\`\`
+
+### Complete Workflow Example
+\`\`\`
+# 1. Start with passive scan
+webguard scan https://example.com
+
+# 2. Review passive scan report
+webguard report last
+
+# 3. Test specific parameters found in scan
+webguard test-xss https://example.com/search q
+webguard test-sqli https://example.com/product id
+
+# 4. View all reports
+webguard xss-report last
+webguard sqli-report last
+
+# 5. Open WebGuard panel for visual reports
+show webguard
 \`\`\`
 
 ---
@@ -1729,19 +2180,113 @@ webguard cmdinj-report last
 ## Tips & Best Practices
 
 1. **Start with passive scans** - Safe, read-only analysis
+   \`\`\`
+   webguard scan https://example.com
+   \`\`\`
+
 2. **Review all findings** - Even low severity issues matter
-3. **Check security headers** - Most common issues
-4. **Monitor sensitive paths** - Prevent data exposure
+   - Check security headers first (most common issues)
+   - Review sensitive path detection results
+   - Monitor CORS misconfigurations
+
+3. **Test systematically** - Test one parameter at a time
+   \`\`\`
+   webguard test-xss https://example.com/search q
+   webguard test-xss https://example.com/search category
+   \`\`\`
+
+4. **Use WebGuard panel** - Visual reports are easier to read
+   \`\`\`
+   show webguard
+   \`\`\`
+
 5. **Regular scans** - Security posture changes over time
-6. **XSS/SQLi testing** - Only test sites you own or have permission to test
+   - Schedule weekly passive scans
+   - Test new features before deployment
+   - Re-test after security updates
+
+6. **Only test authorized sites** - XSS/SQLi testing requires permission
+   - Only test sites you own
+   - Get written permission for client sites
+   - Never test production without authorization
+
 7. **Use prepared statements** - Best defense against SQL injection
+   - Always use parameterized queries
+   - Validate and sanitize all input
+   - Implement proper output encoding
+
+8. **Review remediation advice** - Reports include fix recommendations
+   - Follow severity-based prioritization
+   - Implement CSP headers for XSS protection
+   - Configure security headers properly
+
+---
+
+## Troubleshooting
+
+### Common Errors
+
+**"Invalid URL" error?**
+- URL must start with \`http://\` or \`https://\`
+- Check for typos in URL
+- Verify URL is accessible
+
+**"Parameter not found" error?**
+- Verify parameter name is correct
+- Check URL structure (query string vs form data)
+- Use browser DevTools to inspect parameters
+
+**"Connection timeout" error?**
+- Check network connectivity
+- Verify target site is accessible
+- Some sites may block automated scanners
+
+**"WebGuard not available" error?**
+- Check backend logs for initialization errors
+- Verify WebGuard module is enabled
+- Restart backend if needed
+
+**Report not found?**
+- Use \`last\` to view most recent report
+- Reports are stored in memory (EPM)
+- Older reports may be purged
+
+### Best Practices for Testing
+
+1. **Test in staging first** - Never test production directly
+2. **Use test accounts** - Create dedicated test accounts
+3. **Monitor rate limits** - Don't overwhelm target servers
+4. **Document findings** - Keep records of all tests
+5. **Follow responsible disclosure** - Report vulnerabilities properly
 
 ---
 
 ## Report Storage
 
 Scan reports are stored in ${phoenixName}'s memory (EPM) for later reference.
-Use \`webguard report last\`, \`webguard xss-report last\`, or \`webguard sqli-report last\` to view recent scans.
+
+**Viewing Reports:**
+\`\`\`
+webguard report last              # Last passive scan
+webguard xss-report last          # Last XSS test
+webguard sqli-report last         # Last SQLi test
+webguard redirect-report last     # Last redirect test
+webguard cmdinj-report last       # Last command injection test
+\`\`\`
+
+**Report Format:**
+- Markdown formatted for easy reading
+- Includes severity levels (🔴 Critical, 🟠 High, 🟡 Medium, 🔵 Low)
+- Provides remediation advice
+- Contains proof-of-concept URLs (for XSS)
+
+---
+
+## Screenshot Placeholders
+
+![WebGuard Panel](docs/screenshots/webguard-panel.png)
+![XSS Test Report](docs/screenshots/xss-report.png)
+![SQLi Test Report](docs/screenshots/sqli-report.png)
 
 ---
 
@@ -3931,6 +4476,13 @@ SUB_AGENT_MAX_PLAYBOOK_UPDATES=100
           setShowReportsPanel(false);
         }}
       />
+
+      {showProfilesPanel && (
+        <ProfilesSwipePanel
+          onClose={() => setShowProfilesPanel(false)}
+          backendUrl={BACKEND_URL}
+        />
+      )}
     </div>
   );
 };

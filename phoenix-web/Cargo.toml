@@ -31,6 +31,8 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
 urlencoding = "2"
 uuid = { version = "1.0", features = ["v4"] }
+diffusers = { version = "0.15", features = ["torch", "download", "safetensors"] }
+headless_chrome = "0.13"
 
 llm_orchestrator = { path = "../llm_orchestrator" }
 phoenix_identity = { path = "../phoenix_identity" }

@@ -268,6 +268,43 @@
       "source_ref": "reporting_agent/src/lib.rs:267",
       "returns": "json",
       "description": "Generate report for URL submission"
+    },
+    {
+      "id": "brain.profiles.generate",
+      "input": "generate profile [erotic|intimate|flirty]",
+      "handler": "ProfileGenerator.generate_profile",
+      "source": "phoenix-web/src/profile_generator.rs",
+      "source_ref": "phoenix-web/src/profile_generator.rs:56",
+      "returns": "json",
+      "description": "Generate AI dating profile with photos (explicit content gated)"
+    },
+    {
+      "id": "brain.profiles.list",
+      "input": "profiles list",
+      "handler": "ProfileGenerator.get_profiles",
+      "source": "phoenix-web/src/profile_generator.rs",
+      "source_ref": "phoenix-web/src/profile_generator.rs:195",
+      "returns": "json",
+      "description": "List all generated profiles"
+    },
+    {
+      "id": "brain.profiles.show",
+      "input": "show profiles",
+      "handler": "Frontend.setShowProfilesPanel",
+      "source": "frontend_desktop/App.tsx",
+      "source_ref": "frontend_desktop/App.tsx:293",
+      "returns": "ui_toggle",
+      "description": "Open swipe-based profiles panel"
+    },
+    {
+      "id": "brain.browser.access-porn",
+      "input": "system browser access-porn <url> | consent=true",
+      "handler": "api_browser_access_porn",
+      "source": "phoenix-web/src/main.rs",
+      "source_ref": "phoenix-web/src/main.rs:5775",
+      "returns": "json",
+      "tier": 2,
+      "description": "Access porn site via browser (requires explicit consent)"
     }
   ]
 }

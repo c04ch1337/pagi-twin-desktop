@@ -70,6 +70,7 @@ members = [
     "hardware_detector",
     "home_automation_bridge",
     "horoscope_archetypes",
+    "zodiac_thresholds",
     "network_security_agent",
     "sandbox_manager",
     "malware_sandbox_agent",

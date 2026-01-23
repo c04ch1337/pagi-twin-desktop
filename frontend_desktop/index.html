@@ -26,6 +26,27 @@
                 }
             }
         }
+        
+        // Global Sola App API for desktop integration
+        window.solaApp = {
+            setAccessPornCapability: function(enabled) {
+                console.log('Access Porn Capability:', enabled ? 'Enabled' : 'Disabled');
+                // This will be connected to backend consent management
+            },
+            
+            getGpuUsage: function() {
+                return new Promise((resolve) => {
+                    // Simulate GPU monitoring - in production would use system APIs
+                    setTimeout(() => {
+                        resolve({
+                            gpu: Math.min(100, Math.random() * 100),
+                            vram: Math.min(100, Math.random() * 80),
+                            temperature: Math.round(30 + Math.random() * 50)
+                        });
+                    }, 100);
+                });
+            }
+        };
     </script>
     <link rel="stylesheet" href="/index.css">
 <script type="importmap">

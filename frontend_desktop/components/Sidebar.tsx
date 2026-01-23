@@ -1,5 +1,7 @@
 
 import React, { useState } from 'react';
+import { useAtom } from 'jotai';
+import { modeAtom } from '../stores/modeStore';
 import { Project, ChatHistoryItem } from '../types';
 
 interface SidebarProps {
@@ -41,6 +43,7 @@ const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   const [editingChatId, setEditingChatId] = useState<string | null>(null);
   const [tempTitle, setTempTitle] = useState('');
+  const [mode] = useAtom(modeAtom);
 
   const filteredHistory = chatHistory.filter(h => h.projectId === activeProjectId);
 
@@ -107,20 +110,41 @@ const Sidebar: React.FC<SidebarProps> = ({
       <div className="flex-1 px-4 overflow-y-auto space-y-6">
         <section>
           <div className="space-y-1">
-            <button 
-              onClick={() => onViewChange('chat')}
-              className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${currentView === 'chat' ? 'bg-primary/10 text-primary' : 'text-slate-400 hover:text-slate-200 hover:bg-panel-dark'}`}
-            >
-              <span className="material-symbols-outlined text-[18px]">forum</span>
-              <span className="text-xs font-bold uppercase tracking-wider">Messages</span>
-            </button>
-            <button 
-              onClick={() => onViewChange('scheduler')}
-              className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${currentView === 'scheduler' ? 'bg-primary/10 text-primary' : 'text-slate-400 hover:text-slate-200 hover:bg-panel-dark'}`}
-            >
-              <span className="material-symbols-outlined text-[18px]">calendar_today</span>
-              <span className="text-xs font-bold uppercase tracking-wider">Advanced Scheduler</span>
-            </button>
+            {mode === 'Professional' ? (
+              <>
+                <button 
+                  onClick={() => onViewChange('chat')}
+                  className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${currentView === 'chat' ? 'bg-primary/10 text-primary' : 'text-slate-400 hover:text-slate-200 hover:bg-panel-dark'}`}
+                >
+                  <span className="material-symbols-outlined text-[18px]">task</span>
+                  <span className="text-xs font-bold uppercase tracking-wider">Tasks</span>
+                </button>
+                <button 
+                  onClick={() => onViewChange('scheduler')}
+                  className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${currentView === 'scheduler' ? 'bg-primary/10 text-primary' : 'text-slate-400 hover:text-slate-200 hover:bg-panel-dark'}`}
+                >
+                  <span className="material-symbols-outlined text-[18px]">factory</span>
+                  <span className="text-xs font-bold uppercase tracking-wider">Agent Factory</span>
+                </button>
+              </>
+            ) : (
+              <>
+                <button 
+                  onClick={() => onViewChange('chat')}
+                  className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${currentView === 'chat' ? 'bg-primary/10 text-primary' : 'text-slate-400 hover:text-slate-200 hover:bg-panel-dark'}`}
+                >
+                  <span className="material-symbols-outlined text-[18px]">vault</span>
+                  <span className="text-xs font-bold uppercase tracking-wider">The Vault</span>
+                </button>
+                <button 
+                  onClick={() => onViewChange('scheduler')}
+                  className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${currentView === 'scheduler' ? 'bg-primary/10 text-primary' : 'text-slate-400 hover:text-slate-200 hover:bg-panel-dark'}`}
+                >
+                  <span className="material-symbols-outlined text-[18px]">timeline</span>
+                  <span className="text-xs font-bold uppercase tracking-wider">Relationship Timeline</span>
+                </button>
+              </>
+            )}
           </div>
         </section>
 

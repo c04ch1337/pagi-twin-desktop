@@ -1,106 +1,113 @@
-# Sola AGI - Icon Quick Start
+# Icon Generation - Quick Start Guide
 
-## 🚀 Generate Icons in 3 Commands
+## 🚀 Quick Commands
 
-### Windows
-```powershell
-cd phoenix-desktop-tauri
-.\generate-icons.ps1
-npm run build
-```
-
-### Linux/macOS
 ```bash
 cd phoenix-desktop-tauri
-chmod +x generate-icons.sh
-./generate-icons.sh
-npm run build
-```
 
-### Using npm (All Platforms)
-```bash
-cd phoenix-desktop-tauri
+# Generate placeholder icon + all formats
 npm run icon:generate
-npm run build
-```
 
-## ✅ Verify Icons
-
-```bash
-# Check generated files
-ls -lh src-tauri/icons/
-
-# Should see:
-# - icon.png (1024x1024)
-# - 32x32.png
-# - 128x128.png
-# - 128x128@2x.png
-# - icon.icns (macOS)
-# - icon.ico (Windows)
-```
-
-## 📦 Build Output
-
-Installers with icons:
-- Windows: `src-tauri/target/release/bundle/msi/Sola AGI_1.0.1_x64_en-US.msi`
-- macOS: `src-tauri/target/release/bundle/dmg/Sola AGI_1.0.1_x64.dmg`
-- Linux: `src-tauri/target/release/bundle/appimage/Sola AGI_1.0.1_x86_64.AppImage`
-- Linux: `src-tauri/target/release/bundle/deb/sola-agi_1.0.1_amd64.deb`
-
-## 🎨 Custom Icon
-
-Replace placeholder with your own:
-
-```bash
-# 1. Create or get 1024x1024 PNG
-cp /path/to/your/icon.png src-tauri/icons/icon.png
-
-# 2. Generate all formats
+# OR if icon.png already exists
 npm run icon
 
-# 3. Build
-npm run build
+# Verify icon exists
+npm run icon:verify
 ```
 
-## 🧪 Test
+## 📋 Step-by-Step
 
-1. Install built package
-2. Check icon in:
-   - Start Menu/Applications
-   - Desktop shortcut
-   - System tray
-   - Window title bar
-   - Taskbar/Dock
+### 1. Generate Source Icon (if missing)
 
-3. Hover system tray → Should show "Sola AGI - v1.0.1"
+```bash
+# Generate 1024x1024 placeholder icon
+python generate-placeholder-icon.py
+```
 
-## 📚 Full Documentation
+**Requirements:**
+- Python 3 with Pillow: `pip install Pillow`
+- Output: `src-tauri/icons/icon.png` (1024x1024 PNG)
 
-- **Complete Guide**: [ICON_GENERATION.md](ICON_GENERATION.md)
-- **Testing**: [ICON_TEST_GUIDE.md](ICON_TEST_GUIDE.md)
-- **Build Instructions**: [BUILD.md](BUILD.md)
+### 2. Generate All Platform Formats
+
+```bash
+# Generate Windows .ico, macOS .icns, Linux .png
+cargo tauri icon src-tauri/icons/icon.png
+```
+
+**Generated Files:**
+- `icon.ico` (Windows)
+- `icon.icns` (macOS)
+- `32x32.png`, `128x128.png`, `128x128@2x.png` (Linux)
+
+### 3. Verify Configuration
+
+**Check `tauri.conf.json`:**
+```json
+{
+  "bundle": {
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ]
+  }
+}
+```
+
+**Check `main.rs` tray tooltip:**
+```rust
+.tooltip("Sola AGI - v1.0.1")
+```
+
+### 4. Test Icons
+
+```bash
+# Development mode
+npm run dev
+# → Verify window icon, tray icon, tooltip
+
+# Production build
+npm run build
+# → Verify installers include icons
+```
+
+## ✅ Verification Checklist
+
+- [ ] `src-tauri/icons/icon.png` exists (1024x1024)
+- [ ] `src-tauri/icons/icon.ico` exists
+- [ ] `src-tauri/icons/icon.icns` exists
+- [ ] `src-tauri/icons/32x32.png` exists
+- [ ] `src-tauri/icons/128x128.png` exists
+- [ ] `src-tauri/icons/128x128@2x.png` exists
+- [ ] `tauri.conf.json` has correct icon paths
+- [ ] Tray tooltip is "Sola AGI - v1.0.1"
 
 ## 🐛 Troubleshooting
 
-**"Python not found"**
+**Icon not found?**
 ```bash
-# Install Python 3
+npm run icon:generate
+```
+
+**Pillow not installed?**
+```bash
 pip install Pillow
 ```
 
-**"cargo tauri icon not found"**
+**Tauri CLI not found?**
 ```bash
-cargo install tauri-cli
-# or use: npx @tauri-apps/cli icon src-tauri/icons/icon.png
+npm install -g @tauri-apps/cli
 ```
 
-**"Icon not showing"**
-```bash
-cargo clean
-npm run icon
-npm run build
-```
+## 📚 Full Documentation
+
+- **Icon Generation Guide:** `src-tauri/icons/ICON_GENERATION.md`
+- **Build Guide:** `docs/BUILD.md` (Icon Generation section)
+- **Phase Documentation:** `docs/phases/PHASE_32_ICON_GENERATION.md`
 
 ---
 
-**Ready?** Run the commands above! 🕊️
+**Quick Reference:** Run `npm run icon:generate` to generate everything in one command! 🎨
