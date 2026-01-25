@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useAtom } from 'jotai';
-import { modeAtom } from './stores/modeStore';
+import { modeAtom, setModeAtom } from './stores/modeStore';
 import Sidebar from './components/Sidebar';
 import CognitiveToggle from './components/CognitiveToggle';
 import WorkflowBlock from './components/WorkflowBlock';
@@ -17,6 +17,8 @@ import WebGuardReportPanel, { WebGuardReportData } from './components/WebGuardRe
 import ReportsPanel, { VulnerabilityReport } from './components/ReportsPanel';
 import ProfilesSwipePanel from './components/ProfilesSwipePanel';
 import ProfessionalDashboard from './components/ProfessionalDashboard';
+import MissionControl from './components/MissionControl';
+import CounselorDashboard from './components/CounselorDashboard';
 import { sendNotification } from './services/notificationService';
 import VoiceService from './services/voiceService';
 import analyticsService from './services/analyticsService';
@@ -188,8 +190,10 @@ function createBlob(data: Float32Array): any {
 const App: React.FC = () => {
   const BACKEND_URL = import.meta.env.VITE_PHOENIX_API_URL || 'http://localhost:8888';
 
-  const [currentView, setCurrentView] = useState<'chat' | 'scheduler' | 'professional'>('chat');
+  const [currentView, setCurrentView] = useState<'chat' | 'scheduler' | 'professional' | 'counselor' | 'missions'>('chat');
   const [mode] = useAtom(modeAtom);
+  const [, setMode] = useAtom(setModeAtom);
+  const lastNonCounselorModeRef = useRef<'Professional' | 'Personal'>('Professional');
   const [inputValue, setInputValue] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [streamingMessageId, setStreamingMessageId] = useState<string | null>(null);
@@ -4060,7 +4064,17 @@ SUB_AGENT_MAX_PLAYBOOK_UPDATES=100
         onLogoClick={() => openSettings('settings')}
         onAddProjectClick={() => openSettings('projects')}
         onNewOrchestration={startNewOrchestration}
-        onViewChange={setCurrentView}
+        onViewChange={(view: any) => {
+          // Remember last non-counselor mode
+          if (mode !== 'Counselor') lastNonCounselorModeRef.current = mode;
+
+          setCurrentView(view);
+          if (view === 'counselor') {
+            setMode('Counselor');
+          } else if (mode === 'Counselor') {
+            setMode(lastNonCounselorModeRef.current);
+          }
+        }}
         currentView={currentView}
         projects={projects}
         activeProjectId={activeProjectId}
@@ -4084,14 +4098,32 @@ SUB_AGENT_MAX_PLAYBOOK_UPDATES=100
           <div className="flex items-center gap-4 flex-1">
             <div className="flex items-center gap-2 px-3 py-1.5 bg-panel-dark border border-border-dark rounded-lg">
               <span className="material-symbols-outlined text-[18px] text-primary">
-                {currentView === 'scheduler' ? 'calendar_today' : (activeProject?.icon || 'workspaces')}
+                {currentView === 'scheduler'
+                  ? 'calendar_today'
+                  : currentView === 'missions'
+                    ? 'science'
+                  : currentView === 'counselor'
+                    ? 'spa'
+                    : (activeProject?.icon || 'workspaces')}
               </span>
               <span className="text-xs font-bold text-white uppercase tracking-wider">
-                {currentView === 'scheduler' ? 'Advanced Scheduler' : (activeProject?.name || 'Global')}
+                {currentView === 'scheduler'
+                  ? 'Advanced Scheduler'
+                  : currentView === 'missions'
+                    ? 'Mission Control'
+                  : currentView === 'counselor'
+                    ? 'Counselor Dashboard'
+                    : (activeProject?.name || 'Global')}
               </span>
               <div className="h-3 w-px bg-border-dark mx-1"></div>
               <span className="text-[10px] font-mono text-slate-500 truncate max-w-[200px]">
-                {currentView === 'scheduler' ? 'SYSTEM_CRON_TAB' : activeProject?.location}
+                {currentView === 'scheduler'
+                  ? 'SYSTEM_CRON_TAB'
+                  : currentView === 'missions'
+                    ? 'SCOUT_MISSION_CONTROL'
+                  : currentView === 'counselor'
+                    ? 'SAFE_SPACE'
+                    : activeProject?.location}
               </span>
             </div>
           </div>
@@ -4423,6 +4455,10 @@ SUB_AGENT_MAX_PLAYBOOK_UPDATES=100
               </footer>
             </div>
           </div>
+        ) : currentView === 'missions' ? (
+          <div className="flex-1 overflow-auto p-4">
+            <MissionControl />
+          </div>
         ) : currentView === 'scheduler' ? (
           <SchedulerView
             tasks={scheduledTasks}
@@ -4431,6 +4467,8 @@ SUB_AGENT_MAX_PLAYBOOK_UPDATES=100
             onUpdateTask={handleUpdateTask}
             onDeleteTask={handleDeleteTask}
           />
+        ) : currentView === 'counselor' ? (
+          <CounselorDashboard />
         ) : (
           <ProfessionalDashboard />
         )}

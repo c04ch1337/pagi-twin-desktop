@@ -77,6 +77,9 @@ use voice_io::{VoiceIO, VoiceParams};
 mod profile_generator;
 use profile_generator::{ProfileGenerator, ProfileGenerationRequest};
 
+// Techno-somatic sensing
+mod env_sensor;
+
 fn env_nonempty(key: &str) -> Option<String> {
     std::env::var(key)
         .ok()
@@ -159,6 +162,12 @@ mod professional_agents;
 mod reporting_handler;
 mod swarm_delegation;
 mod trust_api;
+mod counselor_api;
+mod export;
+mod analytics;
+mod interventions;
+mod resonance;
+mod readiness;
 mod websocket;
 use google::{GoogleInitError, GoogleManager};
 use handlers::{build_mode_specific_prompt, detect_intimacy_intent, generate_soft_refusal};
@@ -1086,6 +1095,54 @@ async fn api_not_found(req: HttpRequest) -> impl Responder {
 
 const MEMORY_SEARCH_LIMIT_DEFAULT: usize = 20;
 const MEMORY_SEARCH_LIMIT_MAX: usize = 100;
+
+// Semantic memory (global context note)
+const GLOBAL_CONTEXT_KEY: &str = "vault:global_context";
+
+#[derive(Debug, Deserialize)]
+struct MemoryNotesPostBody {
+    /// Markdown string (persistent semantic memory / scratchpad).
+    note: String,
+}
+
+#[derive(Debug, Serialize)]
+struct MemoryNotesResponse {
+    success: bool,
+    key: String,
+    note: String,
+}
+
+async fn api_memory_notes_get(state: web::Data<AppState>) -> Result<HttpResponse, ApiError> {
+    let note = state
+        .vaults
+        .recall_soul(GLOBAL_CONTEXT_KEY)
+        .unwrap_or_default();
+
+    Ok(HttpResponse::Ok().json(MemoryNotesResponse {
+        success: true,
+        key: GLOBAL_CONTEXT_KEY.to_string(),
+        note,
+    }))
+}
+
+async fn api_memory_notes_post(
+    state: web::Data<AppState>,
+    body: web::Json<MemoryNotesPostBody>,
+) -> Result<HttpResponse, ApiError> {
+    let note = body.note.clone();
+
+    // Allow clearing by posting empty string.
+    state
+        .vaults
+        .store_soul(GLOBAL_CONTEXT_KEY, &note)
+        .map_err(|e| ApiError::internal(format!("Failed to store semantic note: {e}")))?;
+
+    Ok(HttpResponse::Ok().json(MemoryNotesResponse {
+        success: true,
+        key: GLOBAL_CONTEXT_KEY.to_string(),
+        note,
+    }))
+}
 
 const VECTOR_SEARCH_K_DEFAULT: usize = 5;
 const VECTOR_SEARCH_K_MAX: usize = 50;
@@ -3908,15 +3965,8 @@ pub(crate) async fn command_to_response_json(state: &AppState, command: &str) ->
             ", 'exec start <url>' (open websites), 'exec curl -o <file> <url>' (download files), 'system browser help' (browse/navigate/login with credentials/scrape any site)",
         );
 
-        // Add explicit content capabilities if allowed
-        if allow_explicit
-            && matches!(
-                current_phase,
-                relationship_dynamics::RelationshipPhase::Phase3Deep
-            )
-        {
-            capabilities.push_str(", browse explicit websites, download explicit images/videos, copy links to explicit content");
-        }
+        // Explicit capability gating intentionally disabled here.
+        // (Relationship phase + consent gating needs to be wired into this scope.)
 
         capabilities.push_str(". Guide users to use these when they ask for file operations, code analysis, system tasks, web browsing, or downloads.\n\n");
         prompt.push_str(&capabilities);
@@ -6627,6 +6677,11 @@ async fn main() -> std::io::Result<()> {
                     // `default_service` (see `api_not_found()` below). Keep `/api/memory/*`
                     // registrations above the scope's `default_service` to avoid accidental
                     // shadowing if a catch-all is introduced later.
+                    .service(
+                        web::resource("/memory/notes")
+                            .route(web::get().to(api_memory_notes_get))
+                            .route(web::post().to(api_memory_notes_post)),
+                    )
                     .service(web::resource("/memory/store").route(web::post().to(api_memory_store)))
                     .service(
                         web::resource("/memory/get/{key}").route(web::get().to(api_memory_get)),
@@ -6987,6 +7042,7 @@ async fn main() -> std::io::Result<()> {
                             ),
                     )
                     .configure(trust_api::configure_routes)
+                    .configure(counselor_api::configure_routes)
                     .default_service(web::route().to(api_not_found)),
             )
     })

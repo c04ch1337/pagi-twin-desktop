@@ -1,4 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
+import { useAtom } from 'jotai';
+import TrustProgressBar from './TrustProgressBar';
+import { predictedTrustGainAtom, trustScoreAtom, zodiacSignAtom, computeTrustPhase } from '../stores/trustStore';
 
 interface ProfilePhoto {
   id: string;
@@ -34,6 +37,14 @@ const ProfilesSwipePanel: React.FC<ProfilesSwipePanelProps> = ({ onClose, backen
   const [generating, setGenerating] = useState(false);
   const [showExplicit, setShowExplicit] = useState(false);
   const [matches, setMatches] = useState<GeneratedProfile[]>([]);
+
+  // L7 trust (TODO: wire to backend); currently local store.
+  const [trustScore, setTrustScore] = useAtom(trustScoreAtom);
+  const [predictedGain] = useAtom(predictedTrustGainAtom);
+  const [zodiacSign] = useAtom(zodiacSignAtom);
+
+  const trustPhase = useMemo(() => computeTrustPhase(trustScore), [trustScore]);
+  const intimateUnlocked = trustScore >= 0.8;
 
   useEffect(() => {
     loadProfiles();
@@ -85,6 +96,9 @@ const ProfilesSwipePanel: React.FC<ProfilesSwipePanelProps> = ({ onClose, backen
       setMatches([...matches, currentProfile]);
       // TODO: Trigger chat with intimate/kink context
       console.log('Match!', currentProfile);
+
+      // Demo: positive interaction increases trust.
+      setTrustScore((t) => Math.min(1, t + 0.06));
     }
 
     // Move to next profile
@@ -107,6 +121,8 @@ const ProfilesSwipePanel: React.FC<ProfilesSwipePanelProps> = ({ onClose, backen
 
   const currentProfile = profiles[currentIndex];
   const currentPhoto = currentProfile?.photos[currentPhotoIndex];
+
+  const canViewExplicit = showExplicit || intimateUnlocked;
 
   if (loading) {
     return (
@@ -134,6 +150,17 @@ const ProfilesSwipePanel: React.FC<ProfilesSwipePanelProps> = ({ onClose, backen
             </span>
           </div>
           <div className="flex items-center gap-2">
+            <div className="hidden md:block w-[320px]">
+              <TrustProgressBar
+                trustScore={trustScore}
+                predictedGain={predictedGain}
+                zodiacSign={zodiacSign}
+                onPhaseUnlocked={(phase) => {
+                  // Small, local-only effect; can be replaced with toast/notification service.
+                  console.log('Phase unlocked:', phase);
+                }}
+              />
+            </div>
             <button
               onClick={generateProfile}
               disabled={generating}
@@ -172,25 +199,35 @@ const ProfilesSwipePanel: React.FC<ProfilesSwipePanelProps> = ({ onClose, backen
               <div className="relative aspect-[3/4] bg-slate-800 rounded-xl overflow-hidden group">
                 {currentPhoto && (
                   <>
-                    {currentPhoto.is_explicit && !showExplicit ? (
-                      <div className="absolute inset-0 flex items-center justify-center bg-slate-900">
-                        <div className="text-center space-y-4">
-                          <span className="material-symbols-outlined text-primary text-6xl">visibility_off</span>
-                          <p className="text-slate-400">Explicit content</p>
+                    <img
+                      src={currentPhoto.url}
+                      alt={`${currentProfile.name} - Photo ${currentPhotoIndex + 1}`}
+                      className={`w-full h-full object-cover transition-all duration-300 ${
+                        currentPhoto.is_explicit && !canViewExplicit ? 'blur-2xl scale-105' : ''
+                      }`}
+                    />
+
+                    {/* Explicit overlay gate */}
+                    {currentPhoto.is_explicit && !canViewExplicit && (
+                      <div className="absolute inset-0 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm">
+                        <div className="text-center space-y-3 px-6">
+                          <div className="text-slate-200 font-semibold">Locked</div>
+                          <div className="text-xs text-slate-400">
+                            Reach <span className="text-violet-200 font-semibold">Intimate</span> (T ≥ 0.8)
+                            to unlock.
+                          </div>
+                          <div className="text-[10px] text-slate-500 font-mono">
+                            Current: {trustPhase} • T={(trustScore).toFixed(2)}
+                          </div>
                           <button
                             onClick={() => setShowExplicit(true)}
                             className="px-4 py-2 bg-primary/20 hover:bg-primary/30 text-primary rounded-lg text-sm font-medium transition-colors"
+                            title="Temporary override in demo UI; production should rely on L7 trust gate"
                           >
-                            Show
+                            Request Reveal
                           </button>
                         </div>
                       </div>
-                    ) : (
-                      <img
-                        src={currentPhoto.url}
-                        alt={`${currentProfile.name} - Photo ${currentPhotoIndex + 1}`}
-                        className="w-full h-full object-cover"
-                      />
                     )}
                     
                     {/* Photo Navigation */}

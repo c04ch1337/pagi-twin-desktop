@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import SystemVitalsCard from './SystemVitalsCard';
 import LiveAgentsGrid from './LiveAgentsGrid';
 import TaskOrchestrator from './TaskOrchestrator';
+import SecurityOverviewCard from './SecurityOverviewCard';
+import PendingReviewQueueCard from './PendingReviewQueueCard';
 
 interface ProfessionalDashboardProps {
   // Add any props required
@@ -17,6 +19,12 @@ const ProfessionalDashboard: React.FC<ProfessionalDashboardProps> = () => {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
             <div className="">
               <SystemVitalsCard />
+            </div>
+            <div className="">
+              <SecurityOverviewCard />
+            </div>
+            <div className="">
+              <PendingReviewQueueCard />
             </div>
             <div className="lg:col-span-2">
               <LiveAgentsGrid />

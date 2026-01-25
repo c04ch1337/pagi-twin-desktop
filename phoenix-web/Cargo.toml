@@ -26,13 +26,13 @@ oauth2 = { version = "4", default-features = false, features = ["reqwest"] }
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
+sysinfo = "0.30"
 tokio = { version = "1", features = ["full"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
 urlencoding = "2"
 uuid = { version = "1.0", features = ["v4"] }
-diffusers = { version = "0.15", features = ["torch", "download", "safetensors"] }
-headless_chrome = "0.13"
+headless_chrome = "1"
 
 llm_orchestrator = { path = "../llm_orchestrator" }
 phoenix_identity = { path = "../phoenix_identity" }
@@ -65,6 +65,7 @@ sandbox_manager = { path = "../sandbox_manager" }
 malware_sandbox_agent = { path = "../malware_sandbox_agent" }
 webguard = { path = "../webguard" }
 reporting_agent = { path = "../reporting_agent" }
+zodiac_thresholds = { path = "../zodiac_thresholds" }
 
 [target.'cfg(windows)'.dependencies]
 outlook_com = { path = "../outlook_com" }

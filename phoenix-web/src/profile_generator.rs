@@ -7,15 +7,8 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use uuid::Uuid;
-use diffusers::pipelines::stable_diffusion::{StableDiffusionPipeline, StableDiffusionConfig};
-use diffusers::pipelines::common::Pipeline;
-use diffusers::models::autoencoder_kl::AutoencoderKL;
-use diffusers::models::unet_2d_condition::UNet2DConditionModel;
-use diffusers::tokenizers::clip::CLIPTokenizer;
-use diffusers::schedulers::ddim::DDIMScheduler;
 use base64;
 use reqwest;
-use log;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProfilePhoto {
@@ -52,41 +45,13 @@ pub struct ProfileGenerationRequest {
 #[derive(Debug, Clone)]
 pub struct ProfileGenerator {
     profiles: Arc<RwLock<Vec<GeneratedProfile>>>,
-    sd_pipeline: Option<Arc<StableDiffusionPipeline>>,
 }
 
 impl ProfileGenerator {
     pub fn new() -> Self {
         Self {
             profiles: Arc::new(RwLock::new(Vec::new())),
-            sd_pipeline: None,
         }
-    }
-
-    /// Initialize Stable Diffusion pipeline (lazy loading)
-    pub async fn initialize_sd_pipeline(&mut self) -> Result<(), String> {
-        if self.sd_pipeline.is_some() {
-            return Ok(());
-        }
-
-        // Try to load local Stable Diffusion model first
-        match Self::create_sd_pipeline().await {
-            Ok(pipeline) => {
-                self.sd_pipeline = Some(Arc::new(pipeline));
-                Ok(())
-            }
-            Err(_) => {
-                // Fallback to API call if local model not available
-                log::warn!("Local Stable Diffusion model not found, using API fallback");
-                Ok(())
-            }
-        }
-    }
-
-    /// Create Stable Diffusion pipeline
-    async fn create_sd_pipeline() -> Result<StableDiffusionPipeline, String> {
-        // Implementation for loading local SD model
-        Err("Local Stable Diffusion setup required".to_string())
     }
 
     /// Generate a new profile with AI photos
@@ -137,12 +102,9 @@ impl ProfileGenerator {
         // Generate photorealistic prompt
         let prompt = self.generate_photorealistic_prompt(index, is_explicit, intimacy_level);
 
-        // Try local SD first, then API fallback
-        let image_data = if let Some(pipeline) = &self.sd_pipeline {
-            self.generate_with_local_sd(&prompt).await?
-        } else {
-            self.generate_with_sd_api(&prompt).await?
-        };
+        // Bare-metal enforcement: keep this focused on local API calls.
+        // (Local in-process SD pipelines add heavy deps and are optional for this repo.)
+        let image_data = self.generate_with_sd_api(&prompt).await?;
 
         Ok(ProfilePhoto {
             id: photo_id,
@@ -178,12 +140,6 @@ impl ProfileGenerator {
             "{} {}, {}{}",
             base_keywords, intimacy_specific, intimacy_level, nsfw_addition
         )
-    }
-
-    /// Generate image using local Stable Diffusion
-    async fn generate_with_local_sd(&self, prompt: &str) -> Result<Vec<u8>, String> {
-        // Implementation for local SD pipeline
-        Err("Local SD not configured".to_string())
     }
 
     /// Generate image using Stable Diffusion API (Auto1111/Forge)

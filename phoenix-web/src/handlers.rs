@@ -186,86 +186,63 @@ pub fn build_mode_specific_prompt(
             )
         }
     }
-    
-    /// Spawn a professional agent based on task description
-    ///
-    /// This function implements the Agent Factory pattern for Professional CognitiveMode.
-    /// It routes tasks to specialized sub-agents (Researcher, Coder, Manager) and returns
-    /// the appropriate system prompt with state isolation enforced.
-    ///
-    /// # State Isolation
-    ///
-    /// When in Professional mode, this function ensures:
-    /// - NO access to L4 (Semantic/Personal Memory) or L5 (Procedural/Intimate Memory)
-    /// - NO Fantasy Dyad or relational adaptation logic
-    /// - NO Trust Score or relationship-based data access
-    /// - System prompts explicitly remind the AI it is a "Digital Twin" focused on efficiency
-    ///
-    /// # Arguments
-    ///
-    /// * `task_description` - The user's task/request
-    /// * `phoenix_name` - The name of the Phoenix AI instance
-    ///
-    /// # Returns
-    ///
-    /// A tuple of (agent_type, system_prompt) where:
-    /// - `agent_type` is the selected professional agent type
-    /// - `system_prompt` is the complete system prompt with state isolation enforced
-    pub fn spawn_professional_agent(
-        task_description: &str,
-        phoenix_name: &str,
-    ) -> (ProfessionalAgentType, String) {
-        // Route to appropriate agent based on task keywords
-        let agent_type = route_professional_task(task_description);
-        
-        // Get the system prompt for this agent type
-        // The prompt already includes state isolation constraints
-        let system_prompt = agent_type.system_prompt(phoenix_name);
-        
-        (agent_type, system_prompt)
-    }
-    
-    /// Build context for Professional mode with state isolation
-    ///
-    /// This function ensures that L4/L5 memory layers are NEVER injected into the LLM context
-    /// when CognitiveMode is Professional. Only L1-L3 (working memory, episodic) are allowed.
-    ///
-    /// # Arguments
-    ///
-    /// * `task_description` - The user's task/request
-    /// * `cognitive_mode` - The current cognitive mode
-    ///
-    /// # Returns
-    ///
-    /// A vector of context strings that are safe to inject based on the cognitive mode
-    pub fn build_professional_context(
-        task_description: &str,
-        cognitive_mode: CognitiveMode,
-    ) -> Vec<String> {
-        let mut context = Vec::new();
-        
-        match cognitive_mode {
-            CognitiveMode::Professional => {
-                // Professional mode: ONLY allow L1-L3 (working memory, episodic)
-                // NO L4 (Semantic/Personal Memory) or L5 (Procedural/Intimate Memory)
-                
-                // Add task context
-                context.push(format!("TASK: {}", task_description));
-                
-                // Add mode reminder
-                context.push(
-                    "MODE: Professional - Focus on efficiency, clarity, and task completion. \
-                    Personal memories and relationship context are not available in this mode."
-                        .to_string(),
-                );
-            }
-            CognitiveMode::Personal => {
-                // Personal mode: Full memory access allowed (L1-L7)
-                // This is handled by the existing context engine
-                context.push(format!("TASK: {}", task_description));
-            }
+}
+
+/// Spawn a professional agent based on task description
+///
+/// This function implements the Agent Factory pattern for Professional CognitiveMode.
+/// It routes tasks to specialized sub-agents (Researcher, Coder, Manager) and returns
+/// the appropriate system prompt with state isolation enforced.
+///
+/// # State Isolation
+///
+/// When in Professional mode, this function ensures:
+/// - NO access to L4 (Semantic/Personal Memory) or L5 (Procedural/Intimate Memory)
+/// - NO Fantasy Dyad or relational adaptation logic
+/// - NO Trust Score or relationship-based data access
+/// - System prompts explicitly remind the AI it is a "Digital Twin" focused on efficiency
+pub fn spawn_professional_agent(
+    task_description: &str,
+    phoenix_name: &str,
+) -> (ProfessionalAgentType, String) {
+    // Route to appropriate agent based on task keywords
+    let agent_type = route_professional_task(task_description);
+
+    // Get the system prompt for this agent type
+    // The prompt already includes state isolation constraints
+    let system_prompt = agent_type.system_prompt(phoenix_name);
+
+    (agent_type, system_prompt)
+}
+
+/// Build context for Professional mode with state isolation
+///
+/// This function ensures that L4/L5 memory layers are NEVER injected into the LLM context
+/// when CognitiveMode is Professional. Only L1-L3 (working memory, episodic) are allowed.
+pub fn build_professional_context(task_description: &str, cognitive_mode: CognitiveMode) -> Vec<String> {
+    let mut context = Vec::new();
+
+    match cognitive_mode {
+        CognitiveMode::Professional => {
+            // Professional mode: ONLY allow L1-L3 (working memory, episodic)
+            // NO L4 (Semantic/Personal Memory) or L5 (Procedural/Intimate Memory)
+
+            // Add task context
+            context.push(format!("TASK: {}", task_description));
+
+            // Add mode reminder
+            context.push(
+                "MODE: Professional - Focus on efficiency, clarity, and task completion. \
+Personal memories and relationship context are not available in this mode."
+                    .to_string(),
+            );
         }
-        
-        context
+        CognitiveMode::Personal => {
+            // Personal mode: Full memory access allowed (L1-L7)
+            // This is handled by the existing context engine
+            context.push(format!("TASK: {}", task_description));
+        }
     }
+
+    context
 }

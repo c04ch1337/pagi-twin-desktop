@@ -146,10 +146,11 @@ pub async fn handle_reporting_command(state: &AppState, cmd: &str) -> serde_json
             // Try to get last WebGuard scan
             let last_webguard = state.webguard_last_report.lock().await;
             if let Some(ref scan) = *last_webguard {
+                let scan_id = scan.id.clone();
                 drop(last_webguard);
                 
                 let request = ReportRequest {
-                    report_type: ReportType::WebGuardPassive { scan_id: scan.id.clone() },
+                    report_type: ReportType::WebGuardPassive { scan_id },
                     include_remediation: true,
                     include_mitre: true,
                     include_poc: true,

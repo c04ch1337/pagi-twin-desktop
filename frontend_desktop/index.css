@@ -33,6 +33,26 @@ body {
   font-family: var(--font-family), sans-serif;
 }
 
+/* ─────────────────────────────────────────────────────────────
+   Counselor Safe-Space Theme (Lavender & Sage)
+   Activated via `document.documentElement.classList`.
+   ───────────────────────────────────────────────────────────── */
+
+.mode-counselor body {
+  background:
+    radial-gradient(800px 500px at 15% 0%, rgba(167, 139, 250, 0.12), transparent 60%),
+    radial-gradient(700px 480px at 85% 20%, rgba(127, 191, 154, 0.10), transparent 55%),
+    var(--background-dark);
+}
+
+.mode-counselor ::-webkit-scrollbar-thumb {
+  background: rgba(167, 139, 250, 0.22);
+}
+
+.mode-counselor .prose strong {
+  color: rgba(167, 139, 250, 0.95);
+}
+
 /* Custom Markdown Styles */
 .prose code {
   color: var(--primary);

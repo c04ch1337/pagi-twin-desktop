@@ -594,10 +594,10 @@ async fn handle_speak_streaming(
     }
     
     // Intimacy Interceptor: Check if user is pushing for erotic content
-    if detect_intimacy_intent(&user_input) {
+    if crate::handlers::detect_intimacy_intent(&user_input) {
         if relationship_phase != neural_cortex_strata::RelationshipPhase::Intimate {
             // Generate soft refusal based on relationship phase
-            let refusal = generate_soft_refusal(
+            let refusal = crate::handlers::generate_soft_refusal(
                 relationship_phase,
                 Some(&format!("{:?}", zodiac_sign)),
             );
@@ -686,7 +686,7 @@ async fn handle_speak_streaming(
     }
 
     // Build mode-specific system prompt
-    let system_prompt = build_mode_specific_prompt(
+    let system_prompt = crate::handlers::build_mode_specific_prompt(
         cognitive_mode,
         Some(zodiac_sign),
         identity.display_name(),
@@ -1109,7 +1109,35 @@ async fn handle_message(
                     neural_cortex_strata::MemoryLayer::WM(v) => ("WM", v),
                     neural_cortex_strata::MemoryLayer::LTM(v) => ("LTM", v),
                     neural_cortex_strata::MemoryLayer::EPM(v) => ("EPM", v),
+                    neural_cortex_strata::MemoryLayer::SEM(v) => ("SEM", v),
+                    neural_cortex_strata::MemoryLayer::PRO(v) => ("PRO", v),
                     neural_cortex_strata::MemoryLayer::RFM(v) => ("RFM", v),
+                    neural_cortex_strata::MemoryLayer::ArchetypalMemory {
+                        zodiac_sign,
+                        traits,
+                        description,
+                    } => (
+                        "ArchetypalMemory",
+                        json!({
+                            "zodiac_sign": zodiac_sign,
+                            "traits": traits,
+                            "description": description
+                        })
+                        .to_string(),
+                    ),
+                    neural_cortex_strata::MemoryLayer::ProceduralGateMemory {
+                        trust_score,
+                        relationship_phase,
+                        pii_checkbox,
+                    } => (
+                        "ProceduralGateMemory",
+                        json!({
+                            "trust_score": trust_score,
+                            "relationship_phase": relationship_phase,
+                            "pii_checkbox": pii_checkbox,
+                        })
+                        .to_string(),
+                    ),
                 };
                 Ok(WebSocketResponse::MemoryCortexGetResponse {
                     key,
@@ -1136,7 +1164,35 @@ async fn handle_message(
                         neural_cortex_strata::MemoryLayer::WM(v) => ("WM", v),
                         neural_cortex_strata::MemoryLayer::LTM(v) => ("LTM", v),
                         neural_cortex_strata::MemoryLayer::EPM(v) => ("EPM", v),
+                        neural_cortex_strata::MemoryLayer::SEM(v) => ("SEM", v),
+                        neural_cortex_strata::MemoryLayer::PRO(v) => ("PRO", v),
                         neural_cortex_strata::MemoryLayer::RFM(v) => ("RFM", v),
+                        neural_cortex_strata::MemoryLayer::ArchetypalMemory {
+                            zodiac_sign,
+                            traits,
+                            description,
+                        } => (
+                            "ArchetypalMemory",
+                            json!({
+                                "zodiac_sign": zodiac_sign,
+                                "traits": traits,
+                                "description": description
+                            })
+                            .to_string(),
+                        ),
+                        neural_cortex_strata::MemoryLayer::ProceduralGateMemory {
+                            trust_score,
+                            relationship_phase,
+                            pii_checkbox,
+                        } => (
+                            "ProceduralGateMemory",
+                            json!({
+                                "trust_score": trust_score,
+                                "relationship_phase": relationship_phase,
+                                "pii_checkbox": pii_checkbox,
+                            })
+                            .to_string(),
+                        ),
                     };
                     json!({
                         "key": k,

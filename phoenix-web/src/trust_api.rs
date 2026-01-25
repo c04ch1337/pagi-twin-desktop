@@ -145,7 +145,7 @@ pub async fn get_zodiac_traits(state: web::Data<AppState>) -> Result<HttpRespons
 pub async fn reset_trust_score(state: web::Data<AppState>) -> Result<HttpResponse, ApiError> {
     // Get zodiac sign from Phoenix identity
     let identity = state.phoenix_identity.lock().await;
-    let zodiac_sign = identity.get_zodiac_sign();
+    let zodiac_sign = identity.zodiac_sign();
     drop(identity);
     
     let trust_score = TrustScore::new(zodiac_sign);
@@ -170,7 +170,7 @@ async fn load_trust_score(state: &AppState) -> Result<TrustScore, ApiError> {
     
     // If not found, create new one based on Phoenix's zodiac sign
     let identity = state.phoenix_identity.lock().await;
-    let zodiac_sign = identity.get_zodiac_sign();
+    let zodiac_sign = identity.zodiac_sign();
     drop(identity);
     
     let trust_score = TrustScore::new(zodiac_sign);
@@ -183,10 +183,10 @@ async fn load_trust_score(state: &AppState) -> Result<TrustScore, ApiError> {
 
 async fn save_trust_score(state: &AppState, trust_score: &TrustScore) -> Result<(), ApiError> {
     let json_str = serde_json::to_string(trust_score)
-        .map_err(|e| ApiError::InternalError(format!("Failed to serialize trust score: {}", e)))?;
+        .map_err(|e| ApiError::internal(format!("Failed to serialize trust score: {}", e)))?;
     
     state.vaults.store_soul(SOUL_KEY_TRUST_SCORE, &json_str)
-        .map_err(|e| ApiError::InternalError(format!("Failed to save trust score: {}", e)))?;
+        .map_err(|e| ApiError::internal(format!("Failed to save trust score: {}", e)))?;
     
     Ok(())
 }

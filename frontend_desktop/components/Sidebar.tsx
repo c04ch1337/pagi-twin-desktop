@@ -9,8 +9,8 @@ interface SidebarProps {
   onLogoClick: () => void;
   onAddProjectClick: () => void;
   onNewOrchestration: () => void;
-  onViewChange: (view: 'chat' | 'scheduler' | 'professional') => void;
-  currentView: 'chat' | 'scheduler' | 'professional';
+  onViewChange: (view: 'chat' | 'scheduler' | 'professional' | 'counselor' | 'missions') => void;
+  currentView: 'chat' | 'scheduler' | 'professional' | 'counselor' | 'missions';
   projects: Project[];
   activeProjectId: string | null;
   activeChatId: string | null;
@@ -120,6 +120,13 @@ const Sidebar: React.FC<SidebarProps> = ({
                   <span className="text-xs font-bold uppercase tracking-wider">Tasks</span>
                 </button>
                 <button 
+                  onClick={() => onViewChange('missions')}
+                  className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${currentView === 'missions' ? 'bg-primary/10 text-primary' : 'text-slate-400 hover:text-slate-200 hover:bg-panel-dark'}`}
+                >
+                  <span className="material-symbols-outlined text-[18px]">science</span>
+                  <span className="text-xs font-bold uppercase tracking-wider">Mission Control</span>
+                </button>
+                <button 
                   onClick={() => onViewChange('scheduler')}
                   className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${currentView === 'scheduler' ? 'bg-primary/10 text-primary' : 'text-slate-400 hover:text-slate-200 hover:bg-panel-dark'}`}
                 >
@@ -133,6 +140,14 @@ const Sidebar: React.FC<SidebarProps> = ({
                   <span className="material-symbols-outlined text-[18px]">monitoring</span>
                   <span className="text-xs font-bold uppercase tracking-wider">Professional Dashboard</span>
                 </button>
+
+                <button
+                  onClick={() => onViewChange('counselor')}
+                  className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${currentView === 'counselor' ? 'bg-primary/10 text-primary' : 'text-slate-400 hover:text-slate-200 hover:bg-panel-dark'}`}
+                >
+                  <span className="material-symbols-outlined text-[18px]">spa</span>
+                  <span className="text-xs font-bold uppercase tracking-wider">Counselor Dashboard</span>
+                </button>
               </>
             ) : (
               <>
@@ -142,6 +157,13 @@ const Sidebar: React.FC<SidebarProps> = ({
                 >
                   <span className="material-symbols-outlined text-[18px]">vault</span>
                   <span className="text-xs font-bold uppercase tracking-wider">The Vault</span>
+                </button>
+                <button 
+                  onClick={() => onViewChange('missions')}
+                  className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${currentView === 'missions' ? 'bg-primary/10 text-primary' : 'text-slate-400 hover:text-slate-200 hover:bg-panel-dark'}`}
+                >
+                  <span className="material-symbols-outlined text-[18px]">science</span>
+                  <span className="text-xs font-bold uppercase tracking-wider">Mission Control</span>
                 </button>
                 <button 
                   onClick={() => onViewChange('scheduler')}
@@ -156,6 +178,14 @@ const Sidebar: React.FC<SidebarProps> = ({
                 >
                   <span className="material-symbols-outlined text-[18px]">monitoring</span>
                   <span className="text-xs font-bold uppercase tracking-wider">Professional Dashboard</span>
+                </button>
+
+                <button
+                  onClick={() => onViewChange('counselor')}
+                  className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${currentView === 'counselor' ? 'bg-primary/10 text-primary' : 'text-slate-400 hover:text-slate-200 hover:bg-panel-dark'}`}
+                >
+                  <span className="material-symbols-outlined text-[18px]">spa</span>
+                  <span className="text-xs font-bold uppercase tracking-wider">Counselor Dashboard</span>
                 </button>
               </>
             )}
