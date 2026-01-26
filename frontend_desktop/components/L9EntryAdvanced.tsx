@@ -105,7 +105,8 @@ export default function L9EntryAdvanced(props: { onLogged?: () => void }) {
                 value={energy}
                 onChange={(e) => setEnergy(Number(e.target.value))}
                 className="h-28"
-                style={{ writingMode: 'bt-lr', WebkitAppearance: 'slider-vertical' as any }}
+                // Use standards-based writing-mode value; 'bt-lr' is legacy and not in csstype's WritingMode.
+                style={{ writingMode: 'vertical-rl', WebkitAppearance: 'slider-vertical' as any }}
               />
             </div>
             <div>

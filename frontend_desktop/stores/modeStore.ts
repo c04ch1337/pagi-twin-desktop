@@ -2,7 +2,27 @@ import { atom } from 'jotai';
 
 export type Mode = 'Professional' | 'Personal' | 'Counselor';
 
+/**
+ * Phase 13: Predictive Cooling
+ * Separate from navigation modes: this is an overlay state (low-friction UI)
+ * that can be engaged automatically based on system load + intensity.
+ */
+export type CoolingState = 'off' | 'auto_cooling';
+
 export const modeAtom = atom<Mode>('Professional');
+export const coolingStateAtom = atom<CoolingState>('off');
+
+/**
+ * Cooling state setter.
+ * Updates the root class so CSS can apply low-friction overrides.
+ */
+export const setCoolingStateAtom = atom(
+  null,
+  (_get, set, next: CoolingState) => {
+    set(coolingStateAtom, next);
+    updateCoolingOverlay(next);
+  }
+);
 
 /**
  * Direct mode setter (used by navigation / routing).
@@ -86,6 +106,11 @@ const updateColorPalette = (mode: Mode) => {
     root.style.setProperty('--panel-dark', '#1b1824');
     root.style.setProperty('--border-dark', '#2a2435');
   }
+};
+
+const updateCoolingOverlay = (state: CoolingState) => {
+  const root = document.documentElement;
+  root.classList.toggle('mode-deep-calm', state === 'auto_cooling');
 };
 
 const syncModeWithBackend = async (mode: Mode) => {

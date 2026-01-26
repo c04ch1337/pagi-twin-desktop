@@ -80,6 +80,12 @@ use profile_generator::{ProfileGenerator, ProfileGenerationRequest};
 // Techno-somatic sensing
 mod env_sensor;
 
+// Phase 16: Relational Ghost (simulated interlocutor)
+mod ghost_engine;
+
+// Phase 15: Terminal pairing (LAN auto-discovery + QR)
+mod pairing;
+
 fn env_nonempty(key: &str) -> Option<String> {
     std::env::var(key)
         .ok()
@@ -6631,13 +6637,51 @@ async fn main() -> std::io::Result<()> {
     info!("Phoenix API server online at http://{bind}");
     info!("Running in API-only mode");
 
+    // Print LAN pairing details for the Mobile PWA (served separately by Vite on port 3000).
+    // This is safe to call before starting the HTTP server.
+    pairing::print_mobile_pairing_info(3000);
+
     HttpServer::new(move || {
+        // Mobile PWA bridge (internal research / LAN testing)
+        // - Allow localhost + common private LAN ranges.
+        // - Keep credentials support for existing UI calls.
         let cors = Cors::default()
             .allow_any_method()
             .allow_any_header()
-            // local dev (Vite)
-            .allowed_origin("http://localhost:3000")
-            .allowed_origin("http://127.0.0.1:3000")
+            .allowed_origin_fn(|origin, _req| {
+                let Ok(o) = origin.to_str() else {
+                    return false;
+                };
+
+                // Typical dev origins
+                if o.starts_with("http://localhost:")
+                    || o.starts_with("http://127.0.0.1:")
+                    || o.starts_with("https://localhost:")
+                    || o.starts_with("https://127.0.0.1:")
+                {
+                    return true;
+                }
+
+                // Private LAN ranges (best-effort string checks)
+                // 10.0.0.0/8
+                if o.starts_with("http://10.") || o.starts_with("https://10.") {
+                    return true;
+                }
+                // 192.168.0.0/16
+                if o.starts_with("http://192.168.") || o.starts_with("https://192.168.") {
+                    return true;
+                }
+                // 172.16.0.0/12 (172.16..172.31)
+                for i in 16..=31 {
+                    let p_http = format!("http://172.{i}.");
+                    let p_https = format!("https://172.{i}.");
+                    if o.starts_with(&p_http) || o.starts_with(&p_https) {
+                        return true;
+                    }
+                }
+
+                false
+            })
             .supports_credentials();
 
         App::new()

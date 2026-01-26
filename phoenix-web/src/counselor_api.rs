@@ -15,6 +15,7 @@ use crate::export::{ExportData, generate_markdown_report};
 use crate::analytics::{calculate_trigger_correlations, find_contextual_hotspots, CorrelationsResponse};
 use crate::interventions::get_grounding_exercise;
 use crate::env_sensor;
+use crate::ghost_engine;
 
 const GLOBAL_CONTEXT_KEY: &str = "vault:global_context";
 
@@ -260,6 +261,10 @@ pub struct GriefEventIn {
     pub energy_level: u8,
     #[serde(default)]
     pub context_tags: Vec<String>,
+    /// Mobile bridge convenience: accept a single `tag` (Home/Transit/Work/Other)
+    /// and merge into `context_tags`.
+    #[serde(default)]
+    pub tag: Option<String>,
     #[serde(default)]
     pub text: Option<String>,
 }
@@ -271,11 +276,19 @@ pub async fn post_grief_event(
     state: web::Data<AppState>,
     body: web::Json<GriefEventIn>,
 ) -> Result<HttpResponse, ApiError> {
-    let incoming = body.into_inner();
+    let mut incoming = body.into_inner();
     let id = Uuid::new_v4().to_string();
     let ts = incoming.timestamp_ms.unwrap_or_else(now_ms);
 
     let stress = env_sensor::get_system_stress();
+
+    // Merge optional mobile `tag` into `context_tags`.
+    if let Some(tag) = incoming.tag.take() {
+        let t = tag.trim().to_string();
+        if !t.is_empty() {
+            incoming.context_tags.push(t);
+        }
+    }
 
     let event = GriefEvent {
         timestamp_ms: ts,
@@ -529,6 +542,17 @@ pub async fn post_resonate(
     Ok(HttpResponse::Ok().json(result))
 }
 
+/// POST /api/counselor/ghost/simulate
+///
+/// Phase 16: Deterministic simulation of the recipient (“Relational Ghost”).
+pub async fn post_ghost_simulate(
+    body: web::Json<ghost_engine::SimulateRequest>,
+) -> Result<HttpResponse, ApiError> {
+    let req = body.into_inner();
+    let resp = ghost_engine::simulate(req);
+    Ok(HttpResponse::Ok().json(resp))
+}
+
 /// POST /api/counselor/readiness
 ///
 /// HALT-based pre-flight interlock. For now, uses the incoming stress log + heuristics.
@@ -651,6 +675,48 @@ pub async fn get_intervention(
     Ok(HttpResponse::Ok().json(get_grounding_exercise(risk)))
 }
 
+#[derive(serde::Serialize)]
+struct CoolingRecommendationsResponse {
+    success: bool,
+    cpu_usage_percent: u8,
+    suggestions: Vec<String>,
+}
+
+/// GET /api/counselor/cooling-recommendations
+///
+/// Best-effort suggestions for reducing system + cognitive friction.
+pub async fn get_cooling_recommendations() -> Result<HttpResponse, ApiError> {
+    let stress = env_sensor::get_system_stress();
+    let suggestions = env_sensor::get_cooling_suggestions();
+
+    Ok(HttpResponse::Ok().json(CoolingRecommendationsResponse {
+        success: true,
+        cpu_usage_percent: stress.cpu_usage_percent,
+        suggestions,
+    }))
+}
+
+#[derive(serde::Serialize)]
+struct SystemStressResponse {
+    success: bool,
+    /// 0..=100
+    cpu_usage_percent: u8,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    temperature_c: Option<f32>,
+}
+
+/// GET /api/counselor/system-stress
+///
+/// Phase 16b: Biometric Mirror — lightweight polling endpoint for UI “machine heartbeat”.
+pub async fn get_system_stress() -> Result<HttpResponse, ApiError> {
+    let stress = env_sensor::get_system_stress();
+    Ok(HttpResponse::Ok().json(SystemStressResponse {
+        success: true,
+        cpu_usage_percent: stress.cpu_usage_percent,
+        temperature_c: stress.temperature_c,
+    }))
+}
+
 /// Configure counselor API routes
 pub fn configure_routes(cfg: &mut web::ServiceConfig) {
     cfg.service(
@@ -660,10 +726,16 @@ pub fn configure_routes(cfg: &mut web::ServiceConfig) {
             .route("/grief-stats", web::get().to(get_grief_stats))
             .route("/narrative", web::get().to(get_narrative))
             .route("/resonate", web::post().to(post_resonate))
+            .route("/ghost/simulate", web::post().to(post_ghost_simulate))
             .route("/readiness", web::post().to(post_readiness))
             .route("/export", web::get().to(get_export))
             .route("/analytics/correlations", web::get().to(get_correlations))
-            .route("/intervention", web::get().to(get_intervention)),
+            .route("/intervention", web::get().to(get_intervention))
+            .route("/system-stress", web::get().to(get_system_stress))
+            .route(
+                "/cooling-recommendations",
+                web::get().to(get_cooling_recommendations),
+            ),
     );
 }
 

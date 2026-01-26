@@ -6,6 +6,7 @@ pub enum PartnerPersona {
     Secure,
     AvoidantDismissive,
     AnxiousPreoccupied,
+    FearfulAvoidant,
 }
 
 impl PartnerPersona {
@@ -15,6 +16,7 @@ impl PartnerPersona {
             "secure" => Self::Secure,
             "avoidant" | "avoidant-dismissive" | "avoidant_dismissive" => Self::AvoidantDismissive,
             "anxious" | "anxious-preoccupied" | "anxious_preoccupied" => Self::AnxiousPreoccupied,
+            "fearful" | "fearful-avoidant" | "fearful_avoidant" | "disorganized" => Self::FearfulAvoidant,
             _ => Self::Secure,
         }
     }
@@ -24,6 +26,7 @@ impl PartnerPersona {
             Self::Secure => "Secure",
             Self::AvoidantDismissive => "Avoidant-Dismissive",
             Self::AnxiousPreoccupied => "Anxious-Preoccupied",
+            Self::FearfulAvoidant => "Fearful-Avoidant",
         }
     }
 }
@@ -157,6 +160,24 @@ pub fn analyze_resonance(script: &str, persona: PartnerPersona, tone: Option<&st
                 suggestions.push("If you need space, pair it with reassurance + a return time (".to_string() + "e.g., 'I need 30 minutes, then I want to talk.').");
             }
         }
+        PartnerPersona::FearfulAvoidant => {
+            // Disorganized: oscillates between reassurance-seeking and withdrawal.
+            // Penalize pressure *and* ambiguity; reward reassurance + specific timing.
+            if contains_any(&t, &["right now", "immediately", "we need to talk"]) {
+                score -= 10;
+                flags.push("Potential pressure trigger for fearful-avoidant persona".to_string());
+                suggestions.push(
+                    "Offer containment: ‘I want to talk, and we can do it gently for 10 minutes. When works for you?’"
+                        .to_string(),
+                );
+            }
+            if contains_any(&t, &["are we ok", "i care", "i want to reconnect", "i love"]) {
+                score += 5;
+            }
+            if contains_any(&t, &["would you be willing", "open to", "what time works"]) {
+                score += 5;
+            }
+        }
     }
 
     // If script is very long, reduce (harder to land well in real life).
@@ -194,6 +215,15 @@ pub fn analyze_resonance(script: &str, persona: PartnerPersona, tone: Option<&st
                 "I’m trying to hear you, but I’m getting nervous. Do you still want us? Can you reassure me and say what you’re asking for?"
             } else {
                 "I feel really blamed and scared by this. Are you pulling away? I need reassurance and a clear plan for when we’ll talk."
+            }
+        }
+        PartnerPersona::FearfulAvoidant => {
+            if final_score >= 80 {
+                "Thank you for being clear. I want to be close, but I get scared fast—can we do a short, calm check-in and then take a break if needed?"
+            } else if final_score >= 55 {
+                "I’m trying to hear you, but I’m getting overwhelmed and defensive. Can we slow down, and can you reassure me what you want between us?"
+            } else {
+                "This is landing as criticism and I feel unsafe. I’m going to pull back. If you can rephrase as an observation + feeling + request, I can re-engage."
             }
         }
     };

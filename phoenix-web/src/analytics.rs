@@ -1,5 +1,8 @@
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
+use std::sync::{Mutex, OnceLock};
+
+use uuid::Uuid;
 
 use crate::counselor_api::GriefEvent;
 
@@ -240,5 +243,72 @@ pub fn calculate_trigger_correlations(events: &[GriefEvent]) -> Vec<TagCorrelati
     });
 
     out
+}
+
+// ---
+// Phase 16b: Drift Analysis (Ghost session enmeshment)
+// ---
+
+static GHOST_SESSION_STARTS: OnceLock<Mutex<HashMap<Uuid, u8>>> = OnceLock::new();
+
+fn ghost_session_map() -> &'static Mutex<HashMap<Uuid, u8>> {
+    GHOST_SESSION_STARTS.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GhostDrift {
+    pub session_id: String,
+    /// 0..=100
+    pub system_load_start: u8,
+    /// 0..=100
+    pub system_load_end: u8,
+    /// Signed delta: end - start
+    pub drift_delta: i16,
+    /// True when the stress delta is significant.
+    pub drift_alert: bool,
+}
+
+/// Records the start of a ghost session and returns a session id.
+pub fn record_ghost_session_start(system_load_start: u8) -> Uuid {
+    let id = Uuid::new_v4();
+    if let Ok(mut m) = ghost_session_map().lock() {
+        m.insert(id, system_load_start.min(100));
+        // Best-effort GC: bound the map.
+        if m.len() > 2_000 {
+            // Drain arbitrary oldest-ish entries (HashMap has no order; this is best-effort).
+            let to_remove: Vec<Uuid> = m.keys().take(500).cloned().collect();
+            for k in to_remove {
+                m.remove(&k);
+            }
+        }
+    }
+    id
+}
+
+/// Calculates drift based on previously recorded start load and the current end load.
+///
+/// If the session id is unknown, assumes `start == end`.
+pub fn calculate_drift(session_id: Uuid, system_load_end: u8) -> GhostDrift {
+    let end = system_load_end.min(100);
+    let start = if let Ok(mut m) = ghost_session_map().lock() {
+        m.remove(&session_id).unwrap_or(end)
+    } else {
+        end
+    };
+
+    let delta: i16 = (end as i16) - (start as i16);
+
+    // Alert heuristic: large spike and/or high ending load.
+    // - delta >= +18 is a meaningful jump
+    // - end >= 85 is “machine heartbeat” at high strain
+    let drift_alert = delta >= 18 || end >= 85;
+
+    GhostDrift {
+        session_id: session_id.to_string(),
+        system_load_start: start,
+        system_load_end: end,
+        drift_delta: delta,
+        drift_alert,
+    }
 }
 

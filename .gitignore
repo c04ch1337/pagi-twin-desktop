@@ -70,6 +70,7 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
+*.tsbuildinfo
 dist/
 dist-ssr/
 *.local

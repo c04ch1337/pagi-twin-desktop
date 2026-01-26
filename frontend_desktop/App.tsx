@@ -4065,14 +4065,16 @@ SUB_AGENT_MAX_PLAYBOOK_UPDATES=100
         onAddProjectClick={() => openSettings('projects')}
         onNewOrchestration={startNewOrchestration}
         onViewChange={(view: any) => {
-          // Remember last non-counselor mode
-          if (mode !== 'Counselor') lastNonCounselorModeRef.current = mode;
-
           setCurrentView(view);
+
+          // Entering Counselor sets the app mode/theme to Counselor.
+          // IMPORTANT: We do NOT auto-restore the previous mode on *every* navigation away
+          // from the counselor view; that would cause unexpected mode flips while the user
+          // is still operating in Counselor mode across other dashboards (missions, scheduler, etc).
+          // Mode restoration should happen only via an explicit user action (e.g. mode toggle).
           if (view === 'counselor') {
+            if (mode !== 'Counselor') lastNonCounselorModeRef.current = mode;
             setMode('Counselor');
-          } else if (mode === 'Counselor') {
-            setMode(lastNonCounselorModeRef.current);
           }
         }}
         currentView={currentView}
