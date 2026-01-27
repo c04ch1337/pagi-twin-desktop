@@ -81,6 +81,8 @@ jobs:
       - name: Build frontend
         working-directory: frontend_desktop
         run: npm run build
+        env:
+          VITE_PHOENIX_API_URL: http://127.0.0.1:8888
 
       - name: Generate icon if missing
         working-directory: phoenix-desktop-tauri
